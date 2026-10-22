@@ -22,6 +22,16 @@ enum class ModuleId : int
   Fuzz,
   Amp,
   Cabinet,
+  Eq,
+  Chorus,
+  Phaser,
+  Flanger,
+  Tremolo,
+  Vibrato,
+  Rotary,
+  EnvFilter,
+  Delay,
+  Reverb,
   Count
 };
 

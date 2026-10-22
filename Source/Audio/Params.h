@@ -44,6 +44,17 @@ inline constexpr const char* kAmpModel[] = { "Lumen Twin",   "Opal Bloom",   "Gl
 inline constexpr const char* kCabSpeaker[] = { "Aurum 1x12 Open", "Lumen 2x12 Open", "Monolith 4x12", "Vanta 4x12",
                                                "Cedar 2x12",      "Ember 1x10",      "User IR" };
 inline constexpr const char* kCabMic[] = { "Forge D7 (dynamic)", "Pearl C9 (condenser)", "Silk R2 (ribbon)" };
+inline constexpr const char* kEqType[] = { "Bell", "Low Shelf", "High Shelf", "Notch" };
+inline constexpr const char* kSlope[] = { "12 dB/oct", "24 dB/oct" };
+inline constexpr const char* kDelayMode[] = { "Digital", "Tape", "Analog", "Ping-Pong", "Multi-Tap" };
+inline constexpr const char* kDivision[] = { "1/1",  "1/2",   "1/2 dotted",  "1/2 triplet",  "1/4",  "1/4 dotted",  "1/4 triplet",
+                                             "1/8",  "1/8 dotted",  "1/8 triplet", "1/16", "1/16 dotted", "1/16 triplet", "1/32" };
+inline constexpr const char* kReverbMode[] = { "Room", "Hall", "Plate", "Spring", "Shimmer" };
+inline constexpr const char* kPhaserStages[] = { "4 stages", "6 stages", "8 stages", "12 stages" };
+inline constexpr const char* kTremShape[] = { "Sine", "Triangle", "Square" };
+inline constexpr const char* kRotarySpeed[] = { "Slow", "Fast", "Brake" };
+inline constexpr const char* kEnvMode[] = { "Low-pass", "Band-pass", "High-pass" };
+inline constexpr const char* kEnvDirection[] = { "Up", "Down" };
 } // namespace labels
 
 #define TSL_N(arr) static_cast<int>(sizeof(arr) / sizeof(arr[0]))
@@ -161,7 +172,118 @@ inline constexpr const char* kCabMic[] = { "Forge D7 (dynamic)", "Pearl C9 (cond
   X(CabBPhase, "cab.b.phase", "Cab B Phase Invert", "Cab B", Bool, 0.f, 1.f, 0.f, 1.f, Linear, None, nullptr, 0)    \
   X(CabBDelay, "cab.b.delay", "Cab B Delay", "Cab B", Float, 0.f, 2.f, 0.f, 0.001f, Linear, Ms, nullptr, 0) \
   X(CabLowCut, "cab.lowCut", "Cab Low Cut", "Cabinet", Float, 20.f, 400.f, 60.f, 1.f, Exp, Hz, nullptr, 0)            \
-  X(CabHighCut, "cab.highCut", "Cab High Cut", "Cabinet", Float, 2000.f, 20000.f, 12000.f, 1.f, Exp, Hz, nullptr, 0)
+  X(CabHighCut, "cab.highCut", "Cab High Cut", "Cabinet", Float, 2000.f, 20000.f, 12000.f, 1.f, Exp, Hz, nullptr, 0) \
+  X(EqOn, "eq.on", "EQ On", "EQ", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(EqLowCut, "eq.lowCut", "EQ Low Cut", "EQ", Float, 20.0f, 1000.0f, 20.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(EqLowSlope, "eq.lowSlope", "EQ Low Slope", "EQ", Enum, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, labels::kSlope, TSL_N(labels::kSlope)) \
+  X(EqHighCut, "eq.highCut", "EQ High Cut", "EQ", Float, 1000.0f, 20000.0f, 20000.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(EqHighSlope, "eq.highSlope", "EQ High Slope", "EQ", Enum, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, labels::kSlope, TSL_N(labels::kSlope)) \
+  X(EqB1On, "eq.b1.on", "EQ Band 1 On", "EQ", Bool, 0.0f, 1.0f, 1.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(EqB1Type, "eq.b1.type", "EQ Band 1 Type", "EQ", Enum, 0.0f, 3.0f, 1.0f, 1.0f, Linear, None, labels::kEqType, TSL_N(labels::kEqType)) \
+  X(EqB1Freq, "eq.b1.freq", "EQ Band 1 Freq", "EQ", Float, 20.0f, 20000.0f, 100.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(EqB1Gain, "eq.b1.gain", "EQ Band 1 Gain", "EQ", Float, -18.0f, 18.0f, 0.0f, 0.1f, Linear, dB, nullptr, 0) \
+  X(EqB1Q, "eq.b1.q", "EQ Band 1 Q", "EQ", Float, 0.1f, 10.0f, 0.7f, 0.01f, Exp, None, nullptr, 0) \
+  X(EqB2On, "eq.b2.on", "EQ Band 2 On", "EQ", Bool, 0.0f, 1.0f, 1.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(EqB2Type, "eq.b2.type", "EQ Band 2 Type", "EQ", Enum, 0.0f, 3.0f, 0.0f, 1.0f, Linear, None, labels::kEqType, TSL_N(labels::kEqType)) \
+  X(EqB2Freq, "eq.b2.freq", "EQ Band 2 Freq", "EQ", Float, 20.0f, 20000.0f, 350.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(EqB2Gain, "eq.b2.gain", "EQ Band 2 Gain", "EQ", Float, -18.0f, 18.0f, 0.0f, 0.1f, Linear, dB, nullptr, 0) \
+  X(EqB2Q, "eq.b2.q", "EQ Band 2 Q", "EQ", Float, 0.1f, 10.0f, 1.0f, 0.01f, Exp, None, nullptr, 0) \
+  X(EqB3On, "eq.b3.on", "EQ Band 3 On", "EQ", Bool, 0.0f, 1.0f, 1.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(EqB3Type, "eq.b3.type", "EQ Band 3 Type", "EQ", Enum, 0.0f, 3.0f, 0.0f, 1.0f, Linear, None, labels::kEqType, TSL_N(labels::kEqType)) \
+  X(EqB3Freq, "eq.b3.freq", "EQ Band 3 Freq", "EQ", Float, 20.0f, 20000.0f, 1000.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(EqB3Gain, "eq.b3.gain", "EQ Band 3 Gain", "EQ", Float, -18.0f, 18.0f, 0.0f, 0.1f, Linear, dB, nullptr, 0) \
+  X(EqB3Q, "eq.b3.q", "EQ Band 3 Q", "EQ", Float, 0.1f, 10.0f, 1.0f, 0.01f, Exp, None, nullptr, 0) \
+  X(EqB4On, "eq.b4.on", "EQ Band 4 On", "EQ", Bool, 0.0f, 1.0f, 1.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(EqB4Type, "eq.b4.type", "EQ Band 4 Type", "EQ", Enum, 0.0f, 3.0f, 0.0f, 1.0f, Linear, None, labels::kEqType, TSL_N(labels::kEqType)) \
+  X(EqB4Freq, "eq.b4.freq", "EQ Band 4 Freq", "EQ", Float, 20.0f, 20000.0f, 3000.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(EqB4Gain, "eq.b4.gain", "EQ Band 4 Gain", "EQ", Float, -18.0f, 18.0f, 0.0f, 0.1f, Linear, dB, nullptr, 0) \
+  X(EqB4Q, "eq.b4.q", "EQ Band 4 Q", "EQ", Float, 0.1f, 10.0f, 1.0f, 0.01f, Exp, None, nullptr, 0) \
+  X(EqB5On, "eq.b5.on", "EQ Band 5 On", "EQ", Bool, 0.0f, 1.0f, 1.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(EqB5Type, "eq.b5.type", "EQ Band 5 Type", "EQ", Enum, 0.0f, 3.0f, 2.0f, 1.0f, Linear, None, labels::kEqType, TSL_N(labels::kEqType)) \
+  X(EqB5Freq, "eq.b5.freq", "EQ Band 5 Freq", "EQ", Float, 20.0f, 20000.0f, 8000.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(EqB5Gain, "eq.b5.gain", "EQ Band 5 Gain", "EQ", Float, -18.0f, 18.0f, 0.0f, 0.1f, Linear, dB, nullptr, 0) \
+  X(EqB5Q, "eq.b5.q", "EQ Band 5 Q", "EQ", Float, 0.1f, 10.0f, 0.7f, 0.01f, Exp, None, nullptr, 0) \
+  X(EqOutput, "eq.output", "EQ Output", "EQ", Float, -12.0f, 12.0f, 0.0f, 0.1f, Linear, dB, nullptr, 0) \
+  X(DlyOn, "dly.on", "Delay On", "Delay", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(DlyMode, "dly.mode", "Delay Mode", "Delay", Enum, 0.0f, 4.0f, 0.0f, 1.0f, Linear, None, labels::kDelayMode, TSL_N(labels::kDelayMode)) \
+  X(DlyTime, "dly.time", "Delay Time", "Delay", Float, 1.0f, 2000.0f, 380.0f, 0.1f, Exp, Ms, nullptr, 0) \
+  X(DlySync, "dly.sync", "Delay Sync", "Delay", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(DlyDivision, "dly.division", "Delay Division", "Delay", Enum, 0.0f, 13.0f, 5.0f, 1.0f, Linear, None, labels::kDivision, TSL_N(labels::kDivision)) \
+  X(DlyFeedback, "dly.feedback", "Delay Feedback", "Delay", Float, 0.0f, 100.0f, 35.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(DlyMix, "dly.mix", "Delay Mix", "Delay", Float, 0.0f, 100.0f, 25.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(DlyLowCut, "dly.lowCut", "Delay Low Cut", "Delay", Float, 20.0f, 1000.0f, 80.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(DlyHighCut, "dly.highCut", "Delay High Cut", "Delay", Float, 1000.0f, 20000.0f, 7000.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(DlySaturation, "dly.saturation", "Delay Saturation", "Delay", Float, 0.0f, 10.0f, 2.0f, 0.01f, Linear, None, nullptr, 0) \
+  X(DlyModDepth, "dly.modDepth", "Delay Mod Depth", "Delay", Float, 0.0f, 100.0f, 15.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(DlyModRate, "dly.modRate", "Delay Mod Rate", "Delay", Float, 0.05f, 8.0f, 0.6f, 0.01f, Exp, Hz, nullptr, 0) \
+  X(DlyWidth, "dly.width", "Delay Width", "Delay", Float, 0.0f, 100.0f, 60.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(RvbOn, "rvb.on", "Reverb On", "Reverb", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(RvbMode, "rvb.mode", "Reverb Mode", "Reverb", Enum, 0.0f, 4.0f, 1.0f, 1.0f, Linear, None, labels::kReverbMode, TSL_N(labels::kReverbMode)) \
+  X(RvbMix, "rvb.mix", "Reverb Mix", "Reverb", Float, 0.0f, 100.0f, 22.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(RvbDecay, "rvb.decay", "Reverb Decay", "Reverb", Float, 0.1f, 20.0f, 2.5f, 0.01f, Exp, Seconds, nullptr, 0) \
+  X(RvbSize, "rvb.size", "Reverb Size", "Reverb", Float, 0.0f, 100.0f, 60.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(RvbPreDelay, "rvb.preDelay", "Reverb Pre-delay", "Reverb", Float, 0.0f, 250.0f, 20.0f, 0.1f, Linear, Ms, nullptr, 0) \
+  X(RvbEarly, "rvb.early", "Reverb Early", "Reverb", Float, 0.0f, 100.0f, 40.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(RvbDiffusion, "rvb.diffusion", "Reverb Diffusion", "Reverb", Float, 0.0f, 100.0f, 75.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(RvbHighDamp, "rvb.highDamp", "Reverb High Damp", "Reverb", Float, 1000.0f, 20000.0f, 6000.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(RvbLowCut, "rvb.lowCut", "Reverb Low Cut", "Reverb", Float, 20.0f, 1000.0f, 120.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(RvbModulation, "rvb.modulation", "Reverb Modulation", "Reverb", Float, 0.0f, 100.0f, 30.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(RvbWidth, "rvb.width", "Reverb Width", "Reverb", Float, 0.0f, 100.0f, 100.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(RvbFreeze, "rvb.freeze", "Reverb Freeze", "Reverb", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(RvbShimmer, "rvb.shimmer", "Reverb Shimmer", "Reverb", Float, 0.0f, 100.0f, 40.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(ChoOn, "cho.on", "Chorus On", "Chorus", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(ChoRate, "cho.rate", "Chorus Rate", "Chorus", Float, 0.05f, 10.0f, 0.8f, 0.01f, Exp, Hz, nullptr, 0) \
+  X(ChoDepth, "cho.depth", "Chorus Depth", "Chorus", Float, 0.0f, 100.0f, 45.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(ChoMix, "cho.mix", "Chorus Mix", "Chorus", Float, 0.0f, 100.0f, 50.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(ChoWidth, "cho.width", "Chorus Width", "Chorus", Float, 0.0f, 100.0f, 80.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(ChoTone, "cho.tone", "Chorus Tone", "Chorus", Float, 1000.0f, 20000.0f, 9000.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(ChoSync, "cho.sync", "Chorus Sync", "Chorus", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(ChoDivision, "cho.division", "Chorus Division", "Chorus", Enum, 0.0f, 13.0f, 1.0f, 1.0f, Linear, None, labels::kDivision, TSL_N(labels::kDivision)) \
+  X(PhaOn, "pha.on", "Phaser On", "Phaser", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(PhaRate, "pha.rate", "Phaser Rate", "Phaser", Float, 0.02f, 10.0f, 0.4f, 0.01f, Exp, Hz, nullptr, 0) \
+  X(PhaDepth, "pha.depth", "Phaser Depth", "Phaser", Float, 0.0f, 100.0f, 70.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(PhaFeedback, "pha.feedback", "Phaser Feedback", "Phaser", Float, 0.0f, 95.0f, 40.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(PhaStages, "pha.stages", "Phaser Stages", "Phaser", Enum, 0.0f, 3.0f, 1.0f, 1.0f, Linear, None, labels::kPhaserStages, TSL_N(labels::kPhaserStages)) \
+  X(PhaMix, "pha.mix", "Phaser Mix", "Phaser", Float, 0.0f, 100.0f, 50.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(PhaStereo, "pha.stereo", "Phaser Stereo", "Phaser", Float, 0.0f, 180.0f, 90.0f, 1.0f, Linear, Degrees, nullptr, 0) \
+  X(PhaSync, "pha.sync", "Phaser Sync", "Phaser", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(PhaDivision, "pha.division", "Phaser Division", "Phaser", Enum, 0.0f, 13.0f, 0.0f, 1.0f, Linear, None, labels::kDivision, TSL_N(labels::kDivision)) \
+  X(FlaOn, "fla.on", "Flanger On", "Flanger", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(FlaRate, "fla.rate", "Flanger Rate", "Flanger", Float, 0.02f, 10.0f, 0.25f, 0.01f, Exp, Hz, nullptr, 0) \
+  X(FlaDepth, "fla.depth", "Flanger Depth", "Flanger", Float, 0.0f, 100.0f, 60.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(FlaManual, "fla.manual", "Flanger Manual", "Flanger", Float, 0.1f, 10.0f, 2.0f, 0.01f, Exp, Ms, nullptr, 0) \
+  X(FlaFeedback, "fla.feedback", "Flanger Feedback", "Flanger", Float, -95.0f, 95.0f, 50.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(FlaMix, "fla.mix", "Flanger Mix", "Flanger", Float, 0.0f, 100.0f, 50.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(FlaSync, "fla.sync", "Flanger Sync", "Flanger", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(FlaDivision, "fla.division", "Flanger Division", "Flanger", Enum, 0.0f, 13.0f, 0.0f, 1.0f, Linear, None, labels::kDivision, TSL_N(labels::kDivision)) \
+  X(TrmOn, "trm.on", "Tremolo On", "Tremolo", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(TrmRate, "trm.rate", "Tremolo Rate", "Tremolo", Float, 0.1f, 20.0f, 5.0f, 0.01f, Exp, Hz, nullptr, 0) \
+  X(TrmDepth, "trm.depth", "Tremolo Depth", "Tremolo", Float, 0.0f, 100.0f, 50.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(TrmShape, "trm.shape", "Tremolo Shape", "Tremolo", Enum, 0.0f, 2.0f, 0.0f, 1.0f, Linear, None, labels::kTremShape, TSL_N(labels::kTremShape)) \
+  X(TrmStereo, "trm.stereo", "Tremolo Stereo Pan", "Tremolo", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(TrmSync, "trm.sync", "Tremolo Sync", "Tremolo", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(TrmDivision, "trm.division", "Tremolo Division", "Tremolo", Enum, 0.0f, 13.0f, 7.0f, 1.0f, Linear, None, labels::kDivision, TSL_N(labels::kDivision)) \
+  X(VibOn, "vib.on", "Vibrato On", "Vibrato", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(VibRate, "vib.rate", "Vibrato Rate", "Vibrato", Float, 0.1f, 12.0f, 5.0f, 0.01f, Exp, Hz, nullptr, 0) \
+  X(VibDepth, "vib.depth", "Vibrato Depth", "Vibrato", Float, 0.0f, 100.0f, 30.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(VibSync, "vib.sync", "Vibrato Sync", "Vibrato", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(VibDivision, "vib.division", "Vibrato Division", "Vibrato", Enum, 0.0f, 13.0f, 7.0f, 1.0f, Linear, None, labels::kDivision, TSL_N(labels::kDivision)) \
+  X(RotOn, "rot.on", "Rotary On", "Rotary", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(RotSpeed, "rot.speed", "Rotary Speed", "Rotary", Enum, 0.0f, 2.0f, 0.0f, 1.0f, Linear, None, labels::kRotarySpeed, TSL_N(labels::kRotarySpeed)) \
+  X(RotDrive, "rot.drive", "Rotary Drive", "Rotary", Float, 0.0f, 10.0f, 3.0f, 0.01f, Linear, None, nullptr, 0) \
+  X(RotBalance, "rot.balance", "Rotary Horn/Drum", "Rotary", Float, -100.0f, 100.0f, 0.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(RotMix, "rot.mix", "Rotary Mix", "Rotary", Float, 0.0f, 100.0f, 100.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(RotWidth, "rot.width", "Rotary Width", "Rotary", Float, 0.0f, 100.0f, 80.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(EnvOn, "env.on", "Env Filter On", "Envelope Filter", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(EnvMode, "env.mode", "Env Filter Mode", "Envelope Filter", Enum, 0.0f, 2.0f, 1.0f, 1.0f, Linear, None, labels::kEnvMode, TSL_N(labels::kEnvMode)) \
+  X(EnvSensitivity, "env.sensitivity", "Env Filter Sensitivity", "Envelope Filter", Float, 0.0f, 10.0f, 5.0f, 0.01f, Linear, None, nullptr, 0) \
+  X(EnvRangeLow, "env.rangeLow", "Env Filter Range Low", "Envelope Filter", Float, 100.0f, 1000.0f, 250.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(EnvRangeHigh, "env.rangeHigh", "Env Filter Range High", "Envelope Filter", Float, 1000.0f, 6000.0f, 2500.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(EnvQ, "env.q", "Env Filter Q", "Envelope Filter", Float, 0.5f, 12.0f, 4.0f, 0.01f, Exp, None, nullptr, 0) \
+  X(EnvAttack, "env.attack", "Env Filter Attack", "Envelope Filter", Float, 1.0f, 100.0f, 8.0f, 0.1f, Exp, Ms, nullptr, 0) \
+  X(EnvRelease, "env.release", "Env Filter Release", "Envelope Filter", Float, 20.0f, 1000.0f, 150.0f, 0.1f, Exp, Ms, nullptr, 0) \
+  X(EnvDirection, "env.direction", "Env Filter Direction", "Envelope Filter", Enum, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, labels::kEnvDirection, TSL_N(labels::kEnvDirection)) \
+  X(EnvMix, "env.mix", "Env Filter Mix", "Envelope Filter", Float, 0.0f, 100.0f, 100.0f, 0.1f, Linear, Percent, nullptr, 0)
 
 enum ParamId : int
 {

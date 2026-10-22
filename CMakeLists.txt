@@ -31,6 +31,10 @@ add_library(TwoonemoonCore STATIC
   Source/Cabinet/CabIRSynth.cpp
   Source/Cabinet/Cabinet.cpp
   Source/DSP/PitchDetector.cpp
+  Source/Effects/Eq.cpp
+  Source/Effects/Delay.cpp
+  Source/Effects/Reverb.cpp
+  Source/Effects/Modulation.cpp
 )
 target_include_directories(TwoonemoonCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 target_compile_options(TwoonemoonCore PRIVATE -Wall -Wextra -Wno-unused-parameter)

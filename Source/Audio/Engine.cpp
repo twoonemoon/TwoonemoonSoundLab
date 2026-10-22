@@ -5,6 +5,10 @@
 #include "../Amps/Amp.h"
 #include "../Cabinet/Cabinet.h"
 #include "../Effects/Compressor.h"
+#include "../Effects/Delay.h"
+#include "../Effects/Eq.h"
+#include "../Effects/Modulation.h"
+#include "../Effects/Reverb.h"
 #include "../Effects/Drives.h"
 #include "../Effects/NoiseGate.h"
 
@@ -32,6 +36,16 @@ const ModuleMeta kModuleMeta[kNumModules] = {
   { ModuleId::Fuzz, "fuzz", "Fuzz", kFuzzOn },
   { ModuleId::Amp, "amp", "Amp", kAmpOn },
   { ModuleId::Cabinet, "cab", "Cabinet", kCabOn },
+  { ModuleId::Eq, "eq", "EQ", kEqOn },
+  { ModuleId::Chorus, "chorus", "Chorus", kChoOn },
+  { ModuleId::Phaser, "phaser", "Phaser", kPhaOn },
+  { ModuleId::Flanger, "flanger", "Flanger", kFlaOn },
+  { ModuleId::Tremolo, "tremolo", "Tremolo", kTrmOn },
+  { ModuleId::Vibrato, "vibrato", "Vibrato", kVibOn },
+  { ModuleId::Rotary, "rotary", "Rotary", kRotOn },
+  { ModuleId::EnvFilter, "envfilter", "Env Filter", kEnvOn },
+  { ModuleId::Delay, "delay", "Delay", kDlyOn },
+  { ModuleId::Reverb, "reverb", "Reverb", kRvbOn },
 };
 
 constexpr float kSafetyCeiling = 4.0f; // +12 дБFS — аварийный потолок, не «звуковой» лимитер
@@ -52,8 +66,9 @@ ModuleId moduleIdForKey(const char* key) noexcept
 
 ChainOrder defaultChainOrder() noexcept
 {
-  return { ModuleId::Gate, ModuleId::Compressor, ModuleId::Boost, ModuleId::Overdrive, ModuleId::Distortion,
-           ModuleId::Fuzz, ModuleId::Amp, ModuleId::Cabinet };
+  return { ModuleId::Gate,    ModuleId::Compressor, ModuleId::EnvFilter, ModuleId::Boost,   ModuleId::Overdrive, ModuleId::Distortion,
+           ModuleId::Fuzz,    ModuleId::Amp,        ModuleId::Cabinet,   ModuleId::Eq,      ModuleId::Chorus,    ModuleId::Phaser,
+           ModuleId::Flanger, ModuleId::Vibrato,    ModuleId::Tremolo,   ModuleId::Rotary,  ModuleId::Delay,     ModuleId::Reverb };
 }
 
 bool isValidChainOrder(const ChainOrder& order) noexcept
@@ -80,6 +95,16 @@ Engine::Engine()
   mModules[static_cast<size_t>(ModuleId::Fuzz)] = std::make_unique<Fuzz>();
   mModules[static_cast<size_t>(ModuleId::Amp)] = std::make_unique<Amp>();
   mModules[static_cast<size_t>(ModuleId::Cabinet)] = std::make_unique<Cabinet>();
+  mModules[static_cast<size_t>(ModuleId::Eq)] = std::make_unique<Eq>();
+  mModules[static_cast<size_t>(ModuleId::Chorus)] = std::make_unique<Chorus>();
+  mModules[static_cast<size_t>(ModuleId::Phaser)] = std::make_unique<Phaser>();
+  mModules[static_cast<size_t>(ModuleId::Flanger)] = std::make_unique<Flanger>();
+  mModules[static_cast<size_t>(ModuleId::Tremolo)] = std::make_unique<Tremolo>();
+  mModules[static_cast<size_t>(ModuleId::Vibrato)] = std::make_unique<Vibrato>();
+  mModules[static_cast<size_t>(ModuleId::Rotary)] = std::make_unique<Rotary>();
+  mModules[static_cast<size_t>(ModuleId::EnvFilter)] = std::make_unique<EnvFilter>();
+  mModules[static_cast<size_t>(ModuleId::Delay)] = std::make_unique<Delay>();
+  mModules[static_cast<size_t>(ModuleId::Reverb)] = std::make_unique<Reverb>();
 
   for (int i = 0; i < kNumParams; ++i) mParams[static_cast<size_t>(i)] = paramSpec(i).defaultValue;
   mOrderSlots[0] = mOrderSlots[1] = mActiveOrder = mPendingOrder = defaultChainOrder();
