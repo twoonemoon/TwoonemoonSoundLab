@@ -7,7 +7,10 @@
 #include "Effects/Compressor.h"
 #include "Effects/Delay.h"
 #include "Effects/NoiseGate.h"
+#include "Effects/PitchFx.h"
 
+#include <algorithm>
+#include <cstdlib>
 #include <memory>
 
 namespace tslui {
@@ -16,7 +19,7 @@ using namespace tsl;
 
 namespace {
 
-enum class CtlKind { Knob, Selector, Toggle, GateMeter, CompMeter, DelayTime };
+enum class CtlKind { Knob, Selector, Toggle, GateMeter, CompMeter, DelayTime, Voice, HarmInfo, Latency };
 
 struct FxCtl
 {
@@ -49,6 +52,8 @@ const std::vector<FxSpec>& fxSpecs()
       IColor(255, 120, 200, 170), { { K::Selector, kEnvMode, "Mode" }, { K::Selector, kEnvDirection, "Direction" }, { K::Knob, kEnvSensitivity, "Sensitivity" },
                                     { K::Knob, kEnvRangeLow, "Range Low" }, { K::Knob, kEnvRangeHigh, "Range High" }, { K::Knob, kEnvQ, "Q" }, { K::Knob, kEnvAttack, "Attack" },
                                     { K::Knob, kEnvRelease, "Release" }, { K::Knob, kEnvMix, "Mix" } } },
+    { ModuleId::Wah, "Фильтр", "Wah", "Педаль вау: Manual — положение задаётся ручкой Position (её можно назначить на педаль экспрессии), Auto — педаль «нажимается» силой атаки.",
+      IColor(255, 200, 130, 90), { { K::Selector, kWahMode, "Mode" }, { K::Knob, kWahPosition, "Position" }, { K::Knob, kWahQ, "Q" }, { K::Knob, kWahSensitivity, "Sensitivity" }, { K::Knob, kWahMix, "Mix" } } },
     { ModuleId::Boost, "Перегруз", "Pearl Boost", "Чистый подъём уровня перед усилителем. Tight убирает лишний низ для плотного high-gain, Bright добавляет или убирает верх.",
       IColor(255, 214, 207, 203), { { K::Knob, kBoostLevel, "Level" }, { K::Knob, kBoostTight, "Tight" }, { K::Knob, kBoostBright, "Bright" } } },
     { ModuleId::Overdrive, "Перегруз", "Rose Drive", "Овердрайв на ОУ с диодами в обратной связи. Transparent — шире полоса и больше низа, Mid Focus — характерный горб середины.",
@@ -57,6 +62,13 @@ const std::vector<FxSpec>& fxSpecs()
       IColor(255, 160, 160, 172), { { K::Selector, kDistMode, "Mode" }, { K::Knob, kDistDrive, "Drive" }, { K::Knob, kDistTone, "Tone" }, { K::Knob, kDistTight, "Tight" }, { K::Knob, kDistLevel, "Level" } } },
     { ModuleId::Fuzz, "Перегруз", "Violet Fuzz", "Двухтранзисторный фузз. Низкий Bias даёт «голодный» сплаттер, режим Octave добавляет октаву вверх.",
       IColor(255, 160, 140, 230), { { K::Selector, kFuzzMode, "Mode" }, { K::Knob, kFuzzFuzz, "Fuzz" }, { K::Knob, kFuzzTone, "Tone" }, { K::Knob, kFuzzBias, "Bias" }, { K::Knob, kFuzzLevel, "Level" } } },
+    { ModuleId::Octave, "Высота тона", "Octave", "Mono (analog) — делитель частоты без задержки, для одноголосных партий; Poly — сдвиг высоты, работает с аккордами, но голос запаздывает ≈ 25 мс.",
+      IColor(255, 110, 190, 150), { { K::Selector, kOctMode, "Mode" }, { K::Knob, kOctSub1, "Sub 1" }, { K::Knob, kOctSub2, "Sub 2" }, { K::Knob, kOctUp, "Up" }, { K::Knob, kOctDry, "Dry" }, { K::Knob, kOctTone, "Tone" } } },
+    { ModuleId::Pitch, "Высота тона", "Pitch Shifter", "Сдвиг высоты на ±2 октавы с подстройкой в центах. Прямой сигнал не задерживается; сдвинутый голос запаздывает на величину, показанную ниже.",
+      IColor(255, 120, 220, 210), { { K::Selector, kPitchQuality, "Quality" }, { K::Latency, -1, "" }, { K::Knob, kPitchSemitones, "Semitones" }, { K::Knob, kPitchFine, "Fine" }, { K::Knob, kPitchMix, "Mix" } } },
+    { ModuleId::Harmonizer, "Высота тона", "Harmonizer", "Выберите тональность и лад — интервалы голосов подстраиваются под каждую ноту. Рассчитан на одноголосные мелодии: аккорды не гармонизируются по отдельным нотам.",
+      IColor(255, 230, 140, 200), { { K::Selector, kHarmKey, "Key" }, { K::Selector, kHarmScale, "Scale" }, { K::HarmInfo, -1, "" }, { K::Voice, kHarmV1On, "1" },
+                                    { K::Voice, kHarmV2On, "2" }, { K::Voice, kHarmV3On, "3" }, { K::Voice, kHarmV4On, "4" }, { K::Knob, kHarmDry, "Dry" }, { K::Knob, kHarmVoices, "Voices" } } },
     { ModuleId::Chorus, "Модуляция", "Chorus", "Две модулированные линии задержки с разнесёнными по стерео фазами. Width — ширина, Tone — яркость эффекта.",
       IColor(255, 130, 170, 240), { { K::Toggle, kChoSync, "Sync" }, { K::Selector, kChoDivision, "Division" }, { K::Knob, kChoRate, "Rate" }, { K::Knob, kChoDepth, "Depth" },
                                     { K::Knob, kChoMix, "Mix" }, { K::Knob, kChoWidth, "Width" }, { K::Knob, kChoTone, "Tone" } } },
@@ -114,7 +126,7 @@ public:
       g.PathFill(IPattern::CreateRadialGradient(ledX, ledY, 9.f, { { IColor(120, mSpec->color.R, mSpec->color.G, mSpec->color.B), 0.f }, { IColor(0, mSpec->color.R, mSpec->color.G, mSpec->color.B), 1.f } }));
     }
     g.FillCircle(on ? mSpec->color : col::bg3, ledX, ledY, 4.f);
-    g.DrawText(txt(13.f, sel ? col::text : (on ? IColor(255, 210, 212, 218) : col::text2), sel ? font::semibold : font::medium, EAlign::Near), mSpec->title,
+    g.DrawText(txt(12.f, sel ? col::text : (on ? IColor(255, 210, 212, 218) : col::text2), sel ? font::semibold : font::medium, EAlign::Near), mSpec->title,
                mRECT.GetReducedFromLeft(34.f));
   }
   void OnMouseDown(float x, float, const IMouseMod&) override
@@ -158,6 +170,50 @@ private:
   float mShown = -1.f;
 };
 
+/** Определённая нота и задержка голосов гармонайзера. */
+class HarmInfoLabel : public IControl
+{
+public:
+  HarmInfoLabel(const IRECT& r, Harmonizer* h) : IControl(r), mH(h) { mIgnoreMouse = true; }
+  bool IsDirty() override { return mH->detectedNote() != mShown || IControl::IsDirty(); }
+  void Draw(IGraphics& g) override
+  {
+    static const char* kNames[12] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    mShown = mH->detectedNote();
+    char buf[64];
+    if (mShown >= 0) snprintf(buf, sizeof(buf), "%s%d", kNames[mShown % 12], mShown / 12 - 1);
+    else snprintf(buf, sizeof(buf), "—");
+    drawCapsLabel(g, "Нота", mRECT.GetFromTop(14.f), col::text3, 9.f, EAlign::Near);
+    g.DrawText(txt(18.f, col::text, font::semibold, EAlign::Near), buf, mRECT.GetReducedFromTop(14.f).GetFromLeft(60.f));
+    snprintf(buf, sizeof(buf), "голоса ≈ %.0f мс", mH->voiceLatencyMs());
+    g.DrawText(txt(10.f, col::text3, font::mono, EAlign::Near), buf, mRECT.GetReducedFromTop(14.f).GetReducedFromLeft(60.f));
+  }
+
+private:
+  Harmonizer* mH;
+  int mShown = -2;
+};
+
+class LatencyLabel : public IControl
+{
+public:
+  LatencyLabel(const IRECT& r, PitchShift* p, TwoonemoonSoundLab* plugin) : IControl(r), mP(p), mPlugin(plugin) { mIgnoreMouse = true; }
+  bool IsDirty() override { return mPlugin->GetParam(kPitchQuality)->Int() != mShown || IControl::IsDirty(); }
+  void Draw(IGraphics& g) override
+  {
+    mShown = mPlugin->GetParam(kPitchQuality)->Int();
+    char buf[48];
+    snprintf(buf, sizeof(buf), "≈ %.0f мс", mShown == 0 ? 20.f : 40.f);
+    drawCapsLabel(g, "Задержка голоса", mRECT.GetFromTop(14.f), col::text3, 9.f, EAlign::Near);
+    g.DrawText(txt(16.f, col::text, font::monoMedium, EAlign::Near), buf, mRECT.GetReducedFromTop(14.f));
+  }
+
+private:
+  PitchShift* mP;
+  TwoonemoonSoundLab* mPlugin;
+  int mShown = -1;
+};
+
 } // namespace
 
 void buildFxPage(UIContext& ctx, const char* page)
@@ -167,11 +223,12 @@ void buildFxPage(UIContext& ctx, const char* page)
   Engine& engine = plugin->engine();
   const auto& specs = fxSpecs();
   auto selected = std::make_shared<int>(0);
+  if (const char* e = getenv("TSL_FX_SELECT")) *selected = std::clamp(atoi(e), 0, static_cast<int>(specs.size()) - 1);
 
   // ---- Список
   const IRECT list = content.GetFromLeft(250.f);
   ctx.add(new Canvas(list, [](IGraphics& g, const IRECT& r) { drawHardwarePanel(g, r, 12.f); }), page);
-  float y = list.T + 12.f;
+  float y = list.T + 8.f;
   const char* lastCat = "";
   std::vector<std::string> groups;
   for (size_t i = 0; i < specs.size(); ++i)
@@ -180,11 +237,11 @@ void buildFxPage(UIContext& ctx, const char* page)
     if (std::string(lastCat) != s.category)
     {
       lastCat = s.category;
-      ctx.add(new Label(IRECT(list.L + 16.f, y, list.R - 10.f, y + 18.f), s.category, txt(9.f, col::text3, font::semibold, EAlign::Near), true), page);
-      y += 20.f;
+      ctx.add(new Label(IRECT(list.L + 16.f, y, list.R - 10.f, y + 14.f), s.category, txt(8.5f, col::text3, font::semibold, EAlign::Near), true), page);
+      y += 15.f;
     }
     const int idx = static_cast<int>(i);
-    ctx.add(new FxListItem(IRECT(list.L + 6.f, y, list.R - 6.f, y + 27.f), &s, plugin,
+    ctx.add(new FxListItem(IRECT(list.L + 6.f, y, list.R - 6.f, y + 21.f), &s, plugin,
                            [&ctx, selected, idx]() {
                              *selected = idx;
                              ctx.notify(-1);
@@ -192,7 +249,7 @@ void buildFxPage(UIContext& ctx, const char* page)
                            },
                            [selected, idx]() { return *selected == idx; }),
             page);
-    y += 28.f;
+    y += 21.f;
   }
 
   // ---- Детальные панели (по одной на модуль; видна только выбранная)
@@ -226,6 +283,7 @@ void buildFxPage(UIContext& ctx, const char* page)
     const float selY = detail.T + 108.f;
     IRECT knobsArea(detail.L + 16.f, detail.T + 168.f, detail.R - 16.f, detail.B - 16.f);
     std::vector<const FxCtl*> knobs;
+    int voiceRow = 0;
     for (const FxCtl& c : s.controls)
     {
       switch (c.kind)
@@ -256,10 +314,34 @@ void buildFxPage(UIContext& ctx, const char* page)
           ctx.g->AttachControl(new DelayTimeLabel(IRECT(sx, selY, sx + 130.f, selY + 44.f), static_cast<tsl::Delay*>(engine.module(ModuleId::Delay))), kNoTag, grp);
           sx += 140.f;
           break;
+        case CtlKind::HarmInfo:
+          ctx.g->AttachControl(new HarmInfoLabel(IRECT(sx, selY, sx + 200.f, selY + 44.f), static_cast<Harmonizer*>(engine.module(ModuleId::Harmonizer))), kNoTag, grp);
+          sx += 210.f;
+          break;
+        case CtlKind::Latency:
+          ctx.g->AttachControl(new LatencyLabel(IRECT(sx, selY, sx + 160.f, selY + 44.f), static_cast<PitchShift*>(engine.module(ModuleId::Pitch)), plugin), kNoTag, grp);
+          sx += 170.f;
+          break;
+        case CtlKind::Voice:
+        {
+          // Строка голоса: On, Interval, Level, Pan, Delay, Detune
+          const float vy = detail.T + 162.f + voiceRow * 64.f;
+          const int b = c.param;
+          char lbl[16];
+          snprintf(lbl, sizeof(lbl), "Голос %s", c.label);
+          ctx.g->AttachControl(new ToggleChip(IRECT(detail.L + 24.f, vy + 16.f, detail.L + 124.f, vy + 40.f), b, c.label, s.color), kNoTag, grp);
+          ctx.g->AttachControl(new EnumSelector(IRECT(detail.L + 136.f, vy + 14.f, detail.L + 300.f, vy + 42.f), b + 1), kNoTag, grp);
+          const char* names[4] = { "Level", "Pan", "Delay", "Detune" };
+          for (int k = 0; k < 4; ++k)
+            ctx.g->AttachControl(new Knob(IRECT(detail.L + 320.f + k * 84.f, vy, detail.L + 396.f + k * 84.f, vy + 62.f), b + 2 + k, names[k], KnobStyle::Small, s.color, k == 1 || k == 3), kNoTag, grp);
+          ++voiceRow;
+          break;
+        }
         case CtlKind::Knob: knobs.push_back(&c); break;
       }
     }
     if (sx == detail.L + 24.f) knobsArea = knobsArea.GetReducedFromTop(-50.f); // без селекторов — выше
+    if (voiceRow > 0) knobsArea = IRECT(detail.L + 16.f + 700.f, detail.T + 170.f, detail.R - 16.f, detail.B - 16.f);
     const int perRow = knobs.size() > 6 ? 6 : std::max<int>(1, static_cast<int>(knobs.size()));
     const float kw = std::min(130.f, knobsArea.W() / perRow);
     const float kh = 124.f;
