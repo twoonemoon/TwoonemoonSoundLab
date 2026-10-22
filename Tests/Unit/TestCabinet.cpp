@@ -244,3 +244,20 @@ TEST_CASE("cabinet module: zero latency, mono path, stereo when panned, user IR 
   CHECK(info2.error);
   CHECK(!info2.message.empty());
 }
+
+TEST_CASE("cabinet module: IR preview for the UI is published after prepare")
+{
+  Cabinet cab;
+  auto p = defaults();
+  CHECK(cab.irPreview(0).empty());
+  cab.prepare({ 48000.0, 256 });
+  cab.update(p);
+  CHECK(cab.waitIdle(3000));
+  CHECK(cab.previewSerial() > 0);
+  const auto ir = cab.irPreview(0);
+  CHECK(!ir.empty());
+  CHECK(allFinite(ir));
+  float peak = 0.f;
+  for (float v : ir) peak = std::max(peak, std::fabs(v));
+  CHECK(peak > 1e-4f);
+}

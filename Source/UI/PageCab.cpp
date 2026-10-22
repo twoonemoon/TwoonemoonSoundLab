@@ -105,6 +105,7 @@ public:
   bool IsDirty() override
   {
     if (mCab && mCab->previewSerial() != mSerial) return true;
+    if (mEngine && mEngine->isPrepared() != mPrepared) { mPrepared = mEngine->isPrepared(); return true; }
     return IControl::IsDirty();
   }
 
@@ -133,7 +134,12 @@ public:
       const float y = plot.MH() - plot.H() * 0.5f * d / 24.f;
       g.DrawLine(IColor(d == 0.f ? 40 : 18, 255, 255, 255), plot.L, y, plot.R, y, nullptr, 1.f);
     }
-    if (mResp.empty()) return;
+    if (mResp.empty())
+    {
+      if (mEngine && !mEngine->isPrepared())
+        g.DrawText(txt(11.f, col::text3, font::regular), "АЧХ появится, когда запущен звук", plot);
+      return;
+    }
     g.PathClear();
     for (size_t i = 0; i < mResp.size(); ++i)
     {
@@ -198,6 +204,7 @@ private:
   Cabinet* mCab;
   int mSlot;
   Engine* mEngine;
+  bool mPrepared = false;
   uint32_t mSerial = 0xFFFFFFFF;
   std::vector<float> mResp;
 };

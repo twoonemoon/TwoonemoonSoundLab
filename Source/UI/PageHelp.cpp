@@ -87,7 +87,7 @@ public:
     const auto& topics = helpTopics();
     for (size_t i = 0; i < mRows.size(); ++i)
     {
-      const IRECT r(mRECT.L + 8.f, mRECT.T + 8.f + i * 32.f, mRECT.R - 8.f, mRECT.T + 36.f + i * 32.f);
+      const IRECT r(mRECT.L + 8.f, mRECT.T + 8.f + i * 28.f, mRECT.R - 8.f, mRECT.T + 34.f + i * 28.f);
       if (r.B > mRECT.B) break;
       const bool sel = mRows[i] == mSt->selected;
       if (sel)
@@ -103,7 +103,7 @@ public:
   }
   void OnMouseDown(float, float y, const IMouseMod&) override
   {
-    const int i = static_cast<int>((y - mRECT.T - 8.f) / 32.f);
+    const int i = static_cast<int>((y - mRECT.T - 8.f) / 28.f);
     if (i >= 0 && i < static_cast<int>(mRows.size()))
     {
       mSt->selected = mRows[static_cast<size_t>(i)];
