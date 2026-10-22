@@ -31,6 +31,46 @@ inline std::vector<float> noise(int n, float amp, uint32_t seed = 1234)
   return v;
 }
 
+/**
+ * Синтетический «гитарный DI»: щипки струн по алгоритму Karplus–Strong (аккорд и одиночные ноты).
+ * Пиковый уровень ≈ peakDb дБFS. Используется для рендер-тестов и выравнивания громкости.
+ */
+inline std::vector<float> pluckedGuitar(float sr, float seconds, float peakDb = -12.f, uint32_t seed = 77)
+{
+  const int n = static_cast<int>(sr * seconds);
+  std::vector<float> out(static_cast<size_t>(n), 0.f);
+  tsl::FastRandom rnd(seed);
+  // Аккорд E5 (E2 B2 E3) каждые 1 с + одиночные ноты между
+  const float chord[] = { 82.41f, 123.47f, 164.81f };
+  const float notes[] = { 196.0f, 246.94f, 329.63f, 392.0f };
+  auto pluck = [&](float freq, int start, float amp) {
+    const int period = std::max(2, static_cast<int>(sr / freq));
+    std::vector<float> buf(static_cast<size_t>(period));
+    for (auto& v : buf) v = rnd.nextBipolar() * amp;
+    int idx = 0;
+    for (int i = start; i < n; ++i)
+    {
+      const int nxt = (idx + 1) % period;
+      const float y = buf[static_cast<size_t>(idx)];
+      buf[static_cast<size_t>(idx)] = 0.4985f * (y + buf[static_cast<size_t>(nxt)]);
+      out[static_cast<size_t>(i)] += y;
+      idx = nxt;
+      if (i - start > static_cast<int>(sr * 2.5f)) break;
+    }
+  };
+  for (int t = 0; t < static_cast<int>(seconds); ++t)
+  {
+    const int s0 = static_cast<int>(t * sr);
+    for (int c = 0; c < 3; ++c) pluck(chord[c], s0 + c * static_cast<int>(sr * 0.008f), 0.5f);
+    pluck(notes[t % 4], s0 + static_cast<int>(sr * 0.5f), 0.6f);
+  }
+  float pk = 0.f;
+  for (float v : out) pk = std::max(pk, std::fabs(v));
+  const float g = pk > 0.f ? std::pow(10.f, peakDb / 20.f) / pk : 1.f;
+  for (auto& v : out) v *= g;
+  return out;
+}
+
 inline float rms(const float* x, int n)
 {
   double s = 0;

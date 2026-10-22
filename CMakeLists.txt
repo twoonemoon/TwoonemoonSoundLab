@@ -23,6 +23,8 @@ add_library(TwoonemoonCore STATIC
   Source/Effects/NoiseGate.cpp
   Source/Effects/Compressor.cpp
   Source/Effects/Drives.cpp
+  Source/Amps/AmpVoices.cpp
+  Source/Amps/Amp.cpp
 )
 target_include_directories(TwoonemoonCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 target_compile_options(TwoonemoonCore PRIVATE -Wall -Wextra -Wno-unused-parameter)

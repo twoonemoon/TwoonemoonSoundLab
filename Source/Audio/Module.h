@@ -20,6 +20,7 @@ enum class ModuleId : int
   Overdrive,
   Distortion,
   Fuzz,
+  Amp,
   Count
 };
 

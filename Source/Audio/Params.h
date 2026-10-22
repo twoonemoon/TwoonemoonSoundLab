@@ -38,6 +38,9 @@ inline constexpr const char* kOdMode[] = { "Transparent", "Mid Focus" };
 inline constexpr const char* kDistMode[] = { "Silicon", "LED", "Hard" };
 inline constexpr const char* kFuzzMode[] = { "Germanium", "Silicon", "Octave" };
 inline constexpr const char* kOversampling[] = { "Live 2x", "Standard 4x", "High 8x" };
+inline constexpr const char* kAmpModel[] = { "Lumen Twin",   "Opal Bloom",   "Glass Garden",          "Velvet Edge",
+                                             "Brass Circuit", "Rust Monarch", "Thorn Drive",           "Iron Veil",
+                                             "Catacomb",      "Abyssal Lead", "Silver Current Acoustic", "Cedar Room Acoustic" };
 } // namespace labels
 
 #define TSL_N(arr) static_cast<int>(sizeof(arr) / sizeof(arr[0]))
@@ -105,7 +108,29 @@ inline constexpr const char* kOversampling[] = { "Live 2x", "Standard 4x", "High
   X(FuzzFuzz, "fuzz.fuzz", "Fuzz", "Fuzz", Float, 0.f, 10.f, 6.f, 0.01f, Linear, None, nullptr, 0)                    \
   X(FuzzTone, "fuzz.tone", "Fuzz Tone", "Fuzz", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)               \
   X(FuzzBias, "fuzz.bias", "Fuzz Bias", "Fuzz", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)               \
-  X(FuzzLevel, "fuzz.level", "Fuzz Level", "Fuzz", Float, -24.f, 12.f, -8.f, 0.1f, Linear, dB, nullptr, 0)
+  X(FuzzLevel, "fuzz.level", "Fuzz Level", "Fuzz", Float, -24.f, 12.f, -8.f, 0.1f, Linear, dB, nullptr, 0)        \
+  /* ---------------- Amp ---------------- */                                                                         \
+  X(AmpOn, "amp.on", "Amp On", "Amp", Bool, 0.f, 1.f, 1.f, 1.f, Linear, None, nullptr, 0)                             \
+  X(AmpModel, "amp.model", "Amp Model", "Amp", Enum, 0.f, 11.f, 4.f, 1.f, Linear, None, labels::kAmpModel,             \
+    TSL_N(labels::kAmpModel))                                                                                          \
+  X(AmpGain, "amp.gain", "Gain", "Amp", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)                       \
+  X(AmpBass, "amp.bass", "Bass", "Amp", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)                       \
+  X(AmpMid, "amp.mid", "Middle", "Amp", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)                       \
+  X(AmpTreble, "amp.treble", "Treble", "Amp", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)                 \
+  X(AmpPresence, "amp.presence", "Presence", "Amp", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)           \
+  X(AmpDepth, "amp.depth", "Depth", "Amp", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)                    \
+  X(AmpMaster, "amp.master", "Master", "Amp", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)                 \
+  X(AmpLevel, "amp.level", "Amp Level", "Amp", Float, -24.f, 12.f, 0.f, 0.1f, Linear, dB, nullptr, 0)                 \
+  X(AmpSag, "amp.sag", "Sag", "Amp", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)                          \
+  X(AmpBias, "amp.bias", "Bias", "Amp", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)                       \
+  X(AmpFeedback, "amp.feedback", "Feedback", "Amp", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)           \
+  X(AmpBright, "amp.bright", "Bright", "Amp", Bool, 0.f, 1.f, 0.f, 1.f, Linear, None, nullptr, 0)                     \
+  X(AmpLowCut, "amp.lowCut", "Amp Low Cut", "Amp", Float, 20.f, 300.f, 20.f, 1.f, Exp, Hz, nullptr, 0)                \
+  X(AmpHighCut, "amp.highCut", "Amp High Cut", "Amp", Float, 2000.f, 20000.f, 20000.f, 1.f, Exp, Hz, nullptr, 0)      \
+  X(AcBody, "amp.acBody", "Body", "Amp", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)                      \
+  X(AcPiezoTame, "amp.acPiezoTame", "Piezo Tame", "Amp", Float, 0.f, 10.f, 3.f, 0.01f, Linear, None, nullptr, 0)      \
+  X(AcAir, "amp.acAir", "Air", "Amp", Float, 0.f, 10.f, 3.f, 0.01f, Linear, None, nullptr, 0)                         \
+  X(AcRoom, "amp.acRoom", "Room", "Amp", Float, 0.f, 10.f, 2.f, 0.01f, Linear, None, nullptr, 0)
 
 enum ParamId : int
 {

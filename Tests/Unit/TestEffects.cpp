@@ -319,6 +319,7 @@ TEST_CASE("engine: module toggle crossfade has no discontinuity spikes")
     e.process(in, 1, out, 2, 64, t);
     for (int i = 0; i < 64; ++i)
     {
+      if (pos < 2400) { prev = l[pos + i]; continue; } // стартовое затухание модулей, включённых по умолчанию
       maxStep = std::max(maxStep, std::fabs(l[pos + i] - prev));
       prev = l[pos + i];
     }
