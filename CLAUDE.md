@@ -16,6 +16,11 @@
 - Тесты: `build/<config>/Tests/tsl_tests` (или `Scripts/test.sh`).
 - Standalone собирается **без MainMenu.xib** — меню/делегат создаются в `Source/Standalone/AppBootstrap.mm`.
 - Пост-билд iPlug2 копирует плагины в `~/Library/Audio/Plug-Ins/*` и app в `~/Applications`.
+- Валидация: `Scripts/install-validators.sh` (один раз), `Scripts/validate.sh` — после изменений плагина.
+- Установщик: `Scripts/package.sh [--no-build]` → `dist/TwoonemoonSoundLab-Installer.pkg`; удаление —
+  `Scripts/uninstall.sh`. Подпись/нотаризация — только через переменные окружения (docs/RELEASE.md), секреты в репозиторий не класть.
+- Скриншоты для проверки UI: `Scripts/screenshot.sh out.png <страница 0–8>` (`TSL_UI_SCALE`, `TSL_SHOW_TUNER`, `TSL_FX_SELECT`).
+- После правки `Source/UI/HelpContent.cpp` — `python3 -I Scripts/tools/gen_help_doc.py` (docs/HELP_CONTENT.md).
 
 ## Архитектура (кратко, подробно — docs/ARCHITECTURE.md)
 - `Source/DSP`, `Source/Effects`, `Source/Amps`, `Source/Cabinet`, `Source/Audio` — библиотека `TwoonemoonCore`,
@@ -33,6 +38,11 @@
 Запрещено: аллокации, файлы, сеть, mutex/ожидания, логирование, JSON, создание FFT/конволверов/оверсэмплеров.
 Всё готовится в `prepare()`. Обмен с UI — атомики и SPSC-кольца. Новый IR/граф — через подготовленный объект
 и атомарную публикацию; освобождение — вне audio thread.
+
+## Интерфейс
+- Масштаб 75–250% — `IGraphics::Resize` с масштабом; 50% — компактная раскладка 600×380 (`buildCompactUI`),
+  переход пересобирает окно в `OnIdle`. Новые важные функции добавлять и в компактный режим, если они нужны для игры.
+- Подсказка нужна каждому новому параметру (`HelpContent.cpp`), иначе пропадёт из справки.
 
 ## Модули
 - Каждый модуль: `prepare/reset/update/process`, корректная работа с моно/стерео (`AudioBlock::stereo`),

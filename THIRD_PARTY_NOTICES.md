@@ -7,7 +7,7 @@
 | NanoVG / NanoSVG | в составе iPlug2 | zlib | рендеринг UI |
 | MetalNanoVG | в составе iPlug2 | MIT | Metal-бэкенд NanoVG |
 | RtAudio / RtMidi | в составе iPlug2 | MIT | аудио/MIDI standalone |
-| nlohmann/json | в составе iPlug2 (Dependencies/Extras) | MIT | пресеты (планируется) |
+| nlohmann/json 3.12.0 | в составе iPlug2 (Dependencies/Extras) | MIT | пресеты и настройки (JSON) |
 | VST3 SDK | github.com/steinbergmedia/vst3sdk, tag v3.8.1_build_84 | MIT | VST3-обёртка |
 | CLAP | github.com/free-audio/clap, commit a47f6badb49d948fd009998f28309cdab78979c9 | MIT | CLAP-обёртка |
 | clap-helpers | github.com/free-audio/clap-helpers, commit a380c978f429103e08afc1d17e9efbf3e3c96ee2 | MIT | CLAP-обёртка |
@@ -15,5 +15,6 @@
 | JetBrains Mono 2.304 | github.com/JetBrains/JetBrainsMono, релиз v2.304 | SIL OFL 1.1 (Resources/Fonts/JetBrainsMono-OFL.txt) | шрифт значений |
 
 «VST» — товарный знак Steinberg Media Technologies GmbH. «Audio Units» — товарный знак Apple Inc.
-Импульсные отклики (IR), сэмплы и сторонняя графика не включены. Визуальные референсы в `design/references/`
+Импульсные отклики (IR), сэмплы и сторонняя графика не включены (встроенные кабинеты синтезируются кодом —
+`Resources/IR/ASSET_MANIFEST.md`; иконка и вся графика интерфейса нарисованы кодом проекта). Подробно — `docs/LICENSES_AND_ASSETS.md`. Визуальные референсы в `design/references/`
 предоставлены владельцем проекта как mood board и не распространяются как ассеты продукта.

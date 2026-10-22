@@ -18,9 +18,11 @@
 | git | 2.50.1 (Apple Git-155, через CLT) | `git --version` |
 | ibtool / actool / metal | недоступны (требуют полный Xcode) | `xcode-select: tool 'ibtool' requires Xcode` |
 | auval | `/usr/bin/auval` — работает | `auval -strict -v aumf TmSL Twmn` → PASS |
-| VST3 validator | не установлен (собирается из VST3 SDK — запланировано) | — |
-| clap-validator | не установлен | — |
-| pluginval | не установлен | — |
+| VST3 validator | собран из VST3 SDK v3.8.1 (`Scripts/install-validators.sh`) | `validator` → 47 passed, 0 failed |
+| clap-validator | 0.4.1 (официальный релиз free-audio, aarch64) | 38 passed, 0 failed |
+| pluginval | 1.0.4 (официальный релиз Tracktion) | strictness 10: SUCCESS (VST3, AU) |
+| pkgbuild / productbuild / iconutil | системные (`/usr/bin`) | сборка установщика и иконки |
+| swift | Apple Swift 6.3.3 (CLT) | генерация иконки (`Scripts/tools/make_icon.swift`) |
 
 ## Фреймворк и SDK (закреплены)
 

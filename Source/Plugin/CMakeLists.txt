@@ -43,6 +43,7 @@ iplug_add_plugin(TwoonemoonSoundLab
     ${TSL_RES}/Fonts/Inter-Bold.ttf
     ${TSL_RES}/Fonts/JetBrainsMono-Regular.ttf
     ${TSL_RES}/Fonts/JetBrainsMono-Medium.ttf
+    ${TSL_RES}/Icon/TwoonemoonSoundLab.icns
   FORMATS APP VST3 CLAP AU
   LINK TwoonemoonCore
 )
