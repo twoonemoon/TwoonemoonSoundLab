@@ -283,7 +283,8 @@ inline constexpr const char* kEnvDirection[] = { "Up", "Down" };
   X(EnvAttack, "env.attack", "Env Filter Attack", "Envelope Filter", Float, 1.0f, 100.0f, 8.0f, 0.1f, Exp, Ms, nullptr, 0) \
   X(EnvRelease, "env.release", "Env Filter Release", "Envelope Filter", Float, 20.0f, 1000.0f, 150.0f, 0.1f, Exp, Ms, nullptr, 0) \
   X(EnvDirection, "env.direction", "Env Filter Direction", "Envelope Filter", Enum, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, labels::kEnvDirection, TSL_N(labels::kEnvDirection)) \
-  X(EnvMix, "env.mix", "Env Filter Mix", "Envelope Filter", Float, 0.0f, 100.0f, 100.0f, 0.1f, Linear, Percent, nullptr, 0)
+  X(EnvMix, "env.mix", "Env Filter Mix", "Envelope Filter", Float, 0.0f, 100.0f, 100.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(ParallelMix, "chain.parallelMix", "Parallel A/B Mix", "Chain", Float, 0.0f, 100.0f, 50.0f, 0.1f, Linear, Percent, nullptr, 0)
 
 enum ParamId : int
 {

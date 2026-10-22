@@ -25,6 +25,8 @@ public:
   // --- Доступ для UI (UI thread) ---
   tsl::Engine& engine() { return mEngine; }
   void setChainOrder(const tsl::ChainOrder& order);
+  void setChainConfig(const tsl::ChainConfig& cfg);
+  tsl::ChainConfig chainConfig() const { return mEngine.chainConfig(); }
   tsl::ChainOrder chainOrder() const { return mEngine.chainOrder(); }
   /** Изменение порядка цепочки — счётчик, по которому UI понимает, что нужно перерисоваться. */
   uint32_t stateSerial() const { return mStateSerial.load(); }

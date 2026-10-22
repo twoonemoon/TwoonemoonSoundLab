@@ -28,6 +28,28 @@ ChainOrder defaultChainOrder() noexcept;
 /** Проверка, что порядок — перестановка всех модулей. */
 bool isValidChainOrder(const ChainOrder& order) noexcept;
 
+/**
+ * Конфигурация графа: последовательная цепочка с необязательной параллельной секцией
+ * [splitStart, splitEnd) в порядке order. Внутри секции модули с битом в laneB идут по пути B,
+ * остальные — по пути A; на выходе секции пути смешиваются параметром Parallel A/B Mix.
+ */
+struct ChainConfig
+{
+  ChainOrder order = defaultChainOrder();
+  bool parallel = false;
+  uint8_t splitStart = 0, splitEnd = 0;
+  uint32_t laneB = 0; // бит = static_cast<int>(ModuleId)
+
+  bool operator==(const ChainConfig& o) const noexcept
+  {
+    return order == o.order && parallel == o.parallel && splitStart == o.splitStart && splitEnd == o.splitEnd && laneB == o.laneB;
+  }
+  bool operator!=(const ChainConfig& o) const noexcept { return !(*this == o); }
+  bool onLaneB(ModuleId id) const noexcept { return (laneB >> static_cast<int>(id)) & 1u; }
+};
+
+bool isValidChainConfig(const ChainConfig& c) noexcept;
+
 class Engine
 {
 public:
@@ -45,6 +67,8 @@ public:
   /** Любой не-аудио поток. */
   void setChainOrder(const ChainOrder& order) noexcept;
   ChainOrder chainOrder() const noexcept;
+  void setChainConfig(const ChainConfig& cfg) noexcept;
+  ChainConfig chainConfig() const noexcept;
 
   /**
    * Audio thread. in/out — массивы каналов, nIn/nOut ∈ {1,2}. in и out могут совпадать.
@@ -70,6 +94,7 @@ private:
   void processChunk(const float* const* in, int nIn, float** out, int nOut, int offset, int n,
                     const TransportInfo& t) noexcept;
   void updateModules() noexcept;
+  void runModule(ModuleId id, AudioBlock& block) noexcept;
 
   bool mPrepared = false;
   double mSampleRate = 48000.0;
@@ -81,12 +106,13 @@ private:
   std::array<std::unique_ptr<Module>, kNumModules> mModules;
 
   // Порядок цепочки: двойной буфер + атомарный индекс опубликованной версии
-  std::array<ChainOrder, 2> mOrderSlots{};
+  std::array<ChainConfig, 2> mOrderSlots{};
   std::atomic<int> mPublishedOrder{ 0 };
   std::atomic<uint32_t> mOrderSerial{ 0 };
   uint32_t mAppliedSerial = 0;
-  ChainOrder mActiveOrder{};
-  ChainOrder mPendingOrder{};
+  ChainConfig mActiveCfg{};
+  ChainConfig mPendingCfg{};
+  LinearSmoother mParallelA, mParallelB;
   bool mOrderFadeOut = false; // фаза: гасим выход перед сменой порядка
   LinearSmoother mOrderFade;
 
@@ -97,7 +123,7 @@ private:
   LinearSmoother mInGain, mOutGain, mBypassMix, mTunerMute;
 
   // Рабочие буферы (выделены в prepare)
-  std::vector<float> mL, mR, mDryL, mDryR, mKey, mInL, mInR;
+  std::vector<float> mL, mR, mDryL, mDryR, mKey, mInL, mInR, mBL, mBR;
 
   LevelMeter mInMeter, mOutMeter;
   SpscRing<float> mTunerRing, mAnalyzerRing;

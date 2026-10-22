@@ -25,27 +25,28 @@ struct ModuleMeta
   const char* key;
   const char* displayName;
   int enableParam;
+  const char* shortName;
 };
 
 const ModuleMeta kModuleMeta[kNumModules] = {
-  { ModuleId::Gate, "gate", "Noise Gate", kGateOn },
-  { ModuleId::Compressor, "comp", "Compressor", kCompOn },
-  { ModuleId::Boost, "boost", "Boost", kBoostOn },
-  { ModuleId::Overdrive, "od", "Overdrive", kOdOn },
-  { ModuleId::Distortion, "dist", "Distortion", kDistOn },
-  { ModuleId::Fuzz, "fuzz", "Fuzz", kFuzzOn },
-  { ModuleId::Amp, "amp", "Amp", kAmpOn },
-  { ModuleId::Cabinet, "cab", "Cabinet", kCabOn },
-  { ModuleId::Eq, "eq", "EQ", kEqOn },
-  { ModuleId::Chorus, "chorus", "Chorus", kChoOn },
-  { ModuleId::Phaser, "phaser", "Phaser", kPhaOn },
-  { ModuleId::Flanger, "flanger", "Flanger", kFlaOn },
-  { ModuleId::Tremolo, "tremolo", "Tremolo", kTrmOn },
-  { ModuleId::Vibrato, "vibrato", "Vibrato", kVibOn },
-  { ModuleId::Rotary, "rotary", "Rotary", kRotOn },
-  { ModuleId::EnvFilter, "envfilter", "Env Filter", kEnvOn },
-  { ModuleId::Delay, "delay", "Delay", kDlyOn },
-  { ModuleId::Reverb, "reverb", "Reverb", kRvbOn },
+  { ModuleId::Gate, "gate", "Noise Gate", kGateOn, "GATE" },
+  { ModuleId::Compressor, "comp", "Compressor", kCompOn, "COMP" },
+  { ModuleId::Boost, "boost", "Boost", kBoostOn, "BST" },
+  { ModuleId::Overdrive, "od", "Overdrive", kOdOn, "OD" },
+  { ModuleId::Distortion, "dist", "Distortion", kDistOn, "DIST" },
+  { ModuleId::Fuzz, "fuzz", "Fuzz", kFuzzOn, "FUZZ" },
+  { ModuleId::Amp, "amp", "Amp", kAmpOn, "AMP" },
+  { ModuleId::Cabinet, "cab", "Cabinet", kCabOn, "CAB" },
+  { ModuleId::Eq, "eq", "EQ", kEqOn, "EQ" },
+  { ModuleId::Chorus, "chorus", "Chorus", kChoOn, "CHO" },
+  { ModuleId::Phaser, "phaser", "Phaser", kPhaOn, "PHA" },
+  { ModuleId::Flanger, "flanger", "Flanger", kFlaOn, "FLG" },
+  { ModuleId::Tremolo, "tremolo", "Tremolo", kTrmOn, "TRM" },
+  { ModuleId::Vibrato, "vibrato", "Vibrato", kVibOn, "VIB" },
+  { ModuleId::Rotary, "rotary", "Rotary", kRotOn, "ROT" },
+  { ModuleId::EnvFilter, "envfilter", "Env Filter", kEnvOn, "ENV" },
+  { ModuleId::Delay, "delay", "Delay", kDlyOn, "DLY" },
+  { ModuleId::Reverb, "reverb", "Reverb", kRvbOn, "RVB" },
 };
 
 constexpr float kSafetyCeiling = 4.0f; // +12 дБFS — аварийный потолок, не «звуковой» лимитер
@@ -54,6 +55,7 @@ constexpr float kSafetyCeiling = 4.0f; // +12 дБFS — аварийный по
 
 const char* moduleKey(ModuleId id) noexcept { return kModuleMeta[static_cast<int>(id)].key; }
 const char* moduleDisplayName(ModuleId id) noexcept { return kModuleMeta[static_cast<int>(id)].displayName; }
+const char* moduleShortName(ModuleId id) noexcept { return kModuleMeta[static_cast<int>(id)].shortName; }
 int moduleEnableParam(ModuleId id) noexcept { return kModuleMeta[static_cast<int>(id)].enableParam; }
 
 ModuleId moduleIdForKey(const char* key) noexcept
@@ -83,6 +85,13 @@ bool isValidChainOrder(const ChainOrder& order) noexcept
   return true;
 }
 
+bool isValidChainConfig(const ChainConfig& c) noexcept
+{
+  if (!isValidChainOrder(c.order)) return false;
+  if (c.splitStart > c.splitEnd || c.splitEnd > kNumModules) return false;
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 
 Engine::Engine()
@@ -107,7 +116,7 @@ Engine::Engine()
   mModules[static_cast<size_t>(ModuleId::Reverb)] = std::make_unique<Reverb>();
 
   for (int i = 0; i < kNumParams; ++i) mParams[static_cast<size_t>(i)] = paramSpec(i).defaultValue;
-  mOrderSlots[0] = mOrderSlots[1] = mActiveOrder = mPendingOrder = defaultChainOrder();
+  mOrderSlots[0] = mOrderSlots[1] = mActiveCfg = mPendingCfg = ChainConfig{};
 }
 
 Engine::~Engine() = default;
@@ -118,7 +127,7 @@ void Engine::prepare(double sampleRate, int maxBlockSize)
   mMaxBlock = std::max(16, maxBlockSize);
   const float sr = static_cast<float>(mSampleRate);
   const size_t n = static_cast<size_t>(mMaxBlock);
-  for (auto* v : { &mL, &mR, &mDryL, &mDryR, &mKey, &mInL, &mInR }) v->assign(n, 0.0f);
+  for (auto* v : { &mL, &mR, &mDryL, &mDryR, &mKey, &mInL, &mInR, &mBL, &mBR }) v->assign(n, 0.0f);
 
   PrepareInfo info{ mSampleRate, mMaxBlock };
   for (auto& m : mModules) m->prepare(info);
@@ -133,6 +142,10 @@ void Engine::prepare(double sampleRate, int maxBlockSize)
   mBypassMix.snap(mParams[kBypass] >= 0.5f ? 0.0f : 1.0f);
   mTunerMute.snap(mParams[kTunerMute] >= 0.5f ? 1.0f : 0.0f);
   mOrderFade.snap(1.0f);
+  mParallelA.prepare(sr, 0.02f);
+  mParallelB.prepare(sr, 0.02f);
+  mParallelA.snap(1.f);
+  mParallelB.snap(1.f);
   for (int i = 0; i < kNumModules; ++i)
   {
     const bool on = mParams[static_cast<size_t>(moduleEnableParam(static_cast<ModuleId>(i)))] >= 0.5f;
@@ -168,20 +181,29 @@ void Engine::setParam(int id, float v) noexcept
   }
 }
 
-void Engine::setChainOrder(const ChainOrder& order) noexcept
+void Engine::setChainConfig(const ChainConfig& cfg) noexcept
 {
-  if (!isValidChainOrder(order)) return;
+  if (!isValidChainConfig(cfg)) return;
   const int next = 1 - mPublishedOrder.load(std::memory_order_acquire);
   mOrderSerial.fetch_add(1, std::memory_order_acq_rel); // нечётный — запись идёт
-  mOrderSlots[static_cast<size_t>(next)] = order;
+  mOrderSlots[static_cast<size_t>(next)] = cfg;
   mPublishedOrder.store(next, std::memory_order_release);
   mOrderSerial.fetch_add(1, std::memory_order_acq_rel); // чётный — запись завершена
 }
 
-ChainOrder Engine::chainOrder() const noexcept
+ChainConfig Engine::chainConfig() const noexcept
 {
   return mOrderSlots[static_cast<size_t>(mPublishedOrder.load(std::memory_order_acquire))];
 }
+
+void Engine::setChainOrder(const ChainOrder& order) noexcept
+{
+  ChainConfig c = chainConfig();
+  c.order = order;
+  setChainConfig(c);
+}
+
+ChainOrder Engine::chainOrder() const noexcept { return chainConfig().order; }
 
 int Engine::latencySamples() const noexcept
 {
@@ -197,10 +219,52 @@ void Engine::updateModules() noexcept
   mOutGain.setTarget(dbToGain(mParams[kOutputTrim]));
   mBypassMix.setTarget(mParams[kBypass] >= 0.5f ? 0.0f : 1.0f);
   mTunerMute.setTarget(mParams[kTunerMute] >= 0.5f ? 1.0f : 0.0f);
+  const float pm = mParams[kParallelMix] * 0.01f;
+  mParallelA.setTarget(std::min(1.f, 2.f * (1.f - pm)));
+  mParallelB.setTarget(std::min(1.f, 2.f * pm));
   for (int i = 0; i < kNumModules; ++i)
   {
     const bool on = mParams[static_cast<size_t>(moduleEnableParam(static_cast<ModuleId>(i)))] >= 0.5f;
     mModuleMix[static_cast<size_t>(i)].setTarget(on ? 1.0f : 0.0f);
+  }
+}
+
+void Engine::runModule(ModuleId id, AudioBlock& block) noexcept
+{
+  const size_t idx = static_cast<size_t>(id);
+  const int n = block.numFrames;
+  Module* m = mModules[idx].get();
+  LinearSmoother& mix = mModuleMix[idx];
+  const bool targetOn = mix.target() > 0.5f;
+
+  if (!mix.isSmoothing() && !targetOn)
+  {
+    mModuleActive[idx] = false;
+    return;
+  }
+  if (!mModuleActive[idx])
+  {
+    m->reset(); // чистое состояние при включении (без «застрявших» хвостов)
+    mModuleActive[idx] = true;
+  }
+  if (!mix.isSmoothing() && targetOn)
+  {
+    m->process(block);
+    return;
+  }
+  // Crossfade dry/wet при переключении
+  float* dL = mInL.data();
+  float* dR = mInR.data();
+  copyBuffer(dL, block.l, n);
+  const bool wasStereo = block.stereo;
+  if (wasStereo) copyBuffer(dR, block.r, n);
+  m->process(block);
+  if (block.stereo && !wasStereo) copyBuffer(dR, dL, n);
+  for (int i = 0; i < n; ++i)
+  {
+    const float g = mix.next();
+    block.l[i] = dL[i] + g * (block.l[i] - dL[i]);
+    if (block.stereo) block.r[i] = dR[i] + g * (block.r[i] - dR[i]);
   }
 }
 
@@ -220,13 +284,13 @@ void Engine::process(const float* const* in, int nIn, float** out, int nOut, int
   const uint32_t serial = mOrderSerial.load(std::memory_order_acquire);
   if (serial != mAppliedSerial && (serial & 1u) == 0u && !mOrderFadeOut)
   {
-    const ChainOrder candidate = mOrderSlots[static_cast<size_t>(mPublishedOrder.load(std::memory_order_acquire))];
-    if (mOrderSerial.load(std::memory_order_acquire) == serial && isValidChainOrder(candidate))
+    const ChainConfig candidate = mOrderSlots[static_cast<size_t>(mPublishedOrder.load(std::memory_order_acquire))];
+    if (mOrderSerial.load(std::memory_order_acquire) == serial && isValidChainConfig(candidate))
     {
       mAppliedSerial = serial;
-      if (candidate != mActiveOrder)
+      if (candidate != mActiveCfg)
       {
-        mPendingOrder = candidate;
+        mPendingCfg = candidate;
         mOrderFadeOut = true;
         mOrderFade.setTarget(0.0f);
       }
@@ -297,43 +361,36 @@ void Engine::processChunk(const float* const* in, int nIn, float** out, int nOut
   block.keyInput = mKey.data();
   block.transport = &t;
 
-  for (ModuleId id : mActiveOrder)
+  const ChainConfig& cfg = mActiveCfg;
+  const bool par = cfg.parallel && cfg.splitEnd > cfg.splitStart;
+  AudioBlock blockB = block;
+  blockB.l = mBL.data();
+  blockB.r = mBR.data();
+  for (int i = 0; i < kNumModules; ++i)
   {
-    const size_t idx = static_cast<size_t>(id);
-    Module* m = mModules[idx].get();
-    LinearSmoother& mix = mModuleMix[idx];
-    const bool targetOn = mix.target() > 0.5f;
-
-    if (!mix.isSmoothing() && !targetOn)
+    const ModuleId id = cfg.order[static_cast<size_t>(i)];
+    if (par && i == cfg.splitStart)
     {
-      mModuleActive[idx] = false;
-      continue;
+      // Разветвление: путь B получает копию сигнала
+      copyBuffer(blockB.l, block.l, n);
+      if (block.stereo) copyBuffer(blockB.r, block.r, n);
+      blockB.stereo = block.stereo;
     }
-    if (!mModuleActive[idx])
+    const bool inSection = par && i >= cfg.splitStart && i < cfg.splitEnd;
+    runModule(id, inSection && cfg.onLaneB(id) ? blockB : block);
+    if (par && i == cfg.splitEnd - 1)
     {
-      m->reset(); // чистое состояние при включении (без «застрявших» хвостов)
-      mModuleActive[idx] = true;
-    }
-
-    if (!mix.isSmoothing() && targetOn)
-    {
-      m->process(block);
-      continue;
-    }
-
-    // Crossfade dry/wet при переключении
-    float* dL = mInL.data();
-    float* dR = mInR.data();
-    copyBuffer(dL, block.l, n);
-    const bool wasStereo = block.stereo;
-    if (wasStereo) copyBuffer(dR, block.r, n);
-    m->process(block);
-    if (block.stereo && !wasStereo) copyBuffer(dR, dL, n);
-    for (int i = 0; i < n; ++i)
-    {
-      const float g = mix.next();
-      block.l[i] = dL[i] + g * (block.l[i] - dL[i]);
-      if (block.stereo) block.r[i] = dR[i] + g * (block.r[i] - dR[i]);
+      // Слияние путей (задержки путей равны: все модули сейчас имеют нулевую латентность)
+      const bool st = block.stereo || blockB.stereo;
+      if (st && !block.stereo) copyBuffer(block.r, block.l, n);
+      if (st && !blockB.stereo) copyBuffer(blockB.r, blockB.l, n);
+      for (int k = 0; k < n; ++k)
+      {
+        const float ga = mParallelA.next(), gb = mParallelB.next();
+        block.l[k] = block.l[k] * ga + blockB.l[k] * gb;
+        if (st) block.r[k] = block.r[k] * ga + blockB.r[k] * gb;
+      }
+      block.stereo = st;
     }
   }
   stereo = block.stereo;
@@ -349,7 +406,7 @@ void Engine::processChunk(const float* const* in, int nIn, float** out, int nOut
     }
     if (mOrderFadeOut && !mOrderFade.isSmoothing())
     {
-      mActiveOrder = mPendingOrder;
+      mActiveCfg = mPendingCfg;
       mOrderFadeOut = false;
       for (auto& m : mModules) m->reset();
       mOrderFade.setTarget(1.0f);

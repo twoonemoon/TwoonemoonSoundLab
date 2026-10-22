@@ -39,6 +39,7 @@ constexpr int kNumModules = static_cast<int>(ModuleId::Count);
 
 const char* moduleKey(ModuleId id) noexcept;       // стабильный ключ для пресетов
 const char* moduleDisplayName(ModuleId id) noexcept;
+const char* moduleShortName(ModuleId id) noexcept; // 2–4 символа для компактных схем
 ModuleId moduleIdForKey(const char* key) noexcept; // ModuleId::Count если не найден
 int moduleEnableParam(ModuleId id) noexcept;       // ParamId параметра «On»
 

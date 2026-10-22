@@ -2,6 +2,7 @@
 // Общий контекст построения интерфейса: страницы, слушатели изменений параметров.
 #pragma once
 
+#include "Audio/Module.h"
 #include "Controls.h"
 #include "Theme.h"
 
@@ -17,10 +18,19 @@ struct UIContext
   IGraphics* g = nullptr;
   TwoonemoonSoundLab* plugin = nullptr;
   IRECT content;
+  /** Перейти к редактору модуля (страница + выбор), задаётся MainUI/страницей эффектов. */
+  std::function<void(tsl::ModuleId)> openModule;
+  std::function<void(tsl::ModuleId)> selectFx;
   /** Слушатели изменения параметров (UI thread). */
   std::vector<std::function<void(int)>> listeners;
 
   IControl* add(IControl* c, const char* page) { return g->AttachControl(c, kNoTag, page); }
+
+  /** Установить параметр из UI (plain-значение): хост, DSP и все привязанные контролы. */
+  void setParam(int idx, double plain);
+  /** Жест редактирования (для автоматизации хоста) — начало/конец. */
+  void beginEdit(int idx);
+  void endEdit(int idx);
   void onParam(std::function<void(int)> fn) { listeners.push_back(std::move(fn)); }
   void notify(int paramIdx)
   {
@@ -41,6 +51,10 @@ struct UIContext
 };
 
 // Построители страниц
+void buildFxPage(UIContext& ctx, const char* page);
+void buildChainPage(UIContext& ctx, const char* page);
+IColor moduleColor(tsl::ModuleId id);
+void buildEqPage(UIContext& ctx, const char* page);
 void buildPlayPage(UIContext& ctx, const char* page);
 void buildAmpPage(UIContext& ctx, const char* page);
 void buildCabPage(UIContext& ctx, const char* page);

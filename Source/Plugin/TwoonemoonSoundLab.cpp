@@ -93,6 +93,13 @@ void TwoonemoonSoundLab::initParams()
   }
 }
 
+void TwoonemoonSoundLab::setChainConfig(const tsl::ChainConfig& cfg)
+{
+  mEngine.setChainConfig(cfg);
+  mStateSerial.fetch_add(1);
+  DirtyParametersFromUI();
+}
+
 void TwoonemoonSoundLab::setChainOrder(const tsl::ChainOrder& order)
 {
   mEngine.setChainOrder(order);
@@ -124,6 +131,17 @@ bool TwoonemoonSoundLab::SerializeState(IByteChunk& chunk) const
   // v1: пути пользовательских IR (слоты A, B)
   chunk.PutStr(mUserIR[0].c_str());
   chunk.PutStr(mUserIR[1].c_str());
+  // Параллельная секция: флаг, границы (индексы в порядке), путь B — по ключам модулей
+  const tsl::ChainConfig cfg = mEngine.chainConfig();
+  const int32_t par = cfg.parallel ? 1 : 0, ss = cfg.splitStart, se = cfg.splitEnd;
+  chunk.Put(&par);
+  chunk.Put(&ss);
+  chunk.Put(&se);
+  int32_t nb = 0;
+  for (int i = 0; i < tsl::kNumModules; ++i) if (cfg.onLaneB(static_cast<tsl::ModuleId>(i))) ++nb;
+  chunk.Put(&nb);
+  for (int i = 0; i < tsl::kNumModules; ++i)
+    if (cfg.onLaneB(static_cast<tsl::ModuleId>(i))) chunk.PutStr(tsl::moduleKey(static_cast<tsl::ModuleId>(i)));
   return true;
 }
 
@@ -186,6 +204,27 @@ int TwoonemoonSoundLab::UnserializeState(const IByteChunk& chunk, int pos)
     if (np < 0) break;
     p = np;
     if (std::string(path.Get()) != mUserIR[s]) loadUserIR(s, path.Get());
+  }
+  {
+    tsl::ChainConfig cfg = mEngine.chainConfig();
+    cfg.parallel = false;
+    cfg.laneB = 0;
+    int32_t par = 0, ss = 0, se = 0, nb = 0;
+    if (p >= 0 && (p = chunk.Get(&par, p)) >= 0 && (p = chunk.Get(&ss, p)) >= 0 && (p = chunk.Get(&se, p)) >= 0 &&
+        (p = chunk.Get(&nb, p)) >= 0 && nb >= 0 && nb <= 64)
+    {
+      cfg.parallel = par != 0;
+      cfg.splitStart = static_cast<uint8_t>(std::clamp(ss, 0, tsl::kNumModules));
+      cfg.splitEnd = static_cast<uint8_t>(std::clamp(se, static_cast<int>(cfg.splitStart), tsl::kNumModules));
+      WDL_String key;
+      for (int i = 0; i < nb && p >= 0; ++i)
+      {
+        p = chunk.GetStr(key, p);
+        const tsl::ModuleId id = tsl::moduleIdForKey(key.Get());
+        if (p >= 0 && id != tsl::ModuleId::Count) cfg.laneB |= 1u << static_cast<int>(id);
+      }
+    }
+    mEngine.setChainConfig(cfg);
   }
   mStateSerial.fetch_add(1);
   return p < 0 ? chunk.Size() : p;

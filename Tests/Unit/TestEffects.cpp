@@ -327,3 +327,34 @@ TEST_CASE("engine: module toggle crossfade has no discontinuity spikes")
   // Синус 100 Гц 0.2 → макс. шаг ≈ 0.0026; с бустом +6 дБ ≈ 0.0053. Щелчок дал бы скачок ≫ 0.05.
   CHECK_MSG(maxStep < 0.02f, "maxStep=%g", maxStep);
 }
+
+TEST_CASE("engine: parallel section mixes path A and B")
+{
+  auto render = [](float mixPct, bool parallel) {
+    Engine e;
+    e.prepare(48000.0, 256);
+    allModulesOff(e);
+    e.setParam(kBoostOn, 1.f);   // путь A: +12 дБ
+    e.setParam(kBoostLevel, 12.f);
+    e.setParam(kParallelMix, mixPct);
+    ChainConfig c;
+    c.parallel = parallel;
+    // секция охватывает всю цепочку; путь B пустой (Boost — на A)
+    c.splitStart = 0;
+    c.splitEnd = kNumModules;
+    e.setChainConfig(c);
+    auto l = sine(200.f, 0.05f, 48000.f, 48000);
+    std::vector<float> r(l.size(), 0.f);
+    runEngine(e, l, r, 1, 256);
+    return rms(l, 24000) / rms(sine(200.f, 0.05f, 48000.f, 48000), 24000);
+  };
+  CHECK_NEAR(db(render(0.f, true)), 12.0, 0.3);           // только A
+  CHECK_NEAR(db(render(100.f, true)), 0.0, 0.1);          // только B (сухой)
+  CHECK_NEAR(render(50.f, true), dbToGain(12.f) + 1.0, 0.1); // сумма A + B
+  CHECK_NEAR(db(render(100.f, false)), 12.0, 0.3);        // без секции Mix не действует
+
+  ChainConfig bad;
+  bad.splitStart = 5;
+  bad.splitEnd = 3;
+  CHECK(!isValidChainConfig(bad));
+}
