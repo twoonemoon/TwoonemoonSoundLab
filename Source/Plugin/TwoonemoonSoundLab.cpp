@@ -174,7 +174,8 @@ int TwoonemoonSoundLab::UnserializeState(const IByteChunk& chunk, int pos)
     p = chunk.Get(&v, p);
     if (p < 0) break;
     const int id = tsl::paramIdForKey(key.Get());
-    if (id >= 0) GetParam(id)->Set(tsl::paramClamp(id, static_cast<float>(v)));
+    // double без потерь (IParam сам ограничивает диапазон); нечисловые значения — по умолчанию
+    if (id >= 0) std::isfinite(v) ? GetParam(id)->Set(v) : GetParam(id)->SetToDefault();
   }
 
   int32_t nm = 0;
@@ -262,6 +263,87 @@ void TwoonemoonSoundLab::OnUIClose()
 {
   mUIParamListener = nullptr;
 }
+
+#if defined(CLAP_API)
+bool TwoonemoonSoundLab::stateSave(const clap_ostream* pStream) noexcept
+{
+  IByteChunk chunk;
+  if (!SerializeState(chunk)) return false;
+  // Поток может принимать данные порциями — пишем до конца
+  const uint8_t* data = chunk.GetData();
+  int64_t left = chunk.Size();
+  while (left > 0)
+  {
+    const int64_t w = pStream->write(pStream, data, static_cast<uint64_t>(left));
+    if (w <= 0) return false;
+    data += w;
+    left -= w;
+  }
+  return true;
+}
+
+bool TwoonemoonSoundLab::stateLoad(const clap_istream* pStream) noexcept
+{
+  IByteChunk chunk;
+  char buffer[256];
+  int64_t bytesRead = 0;
+  while ((bytesRead = pStream->read(pStream, buffer, sizeof(buffer))) > 0) chunk.PutBytes(buffer, static_cast<int>(bytesRead));
+  if (bytesRead != 0 || chunk.Size() == 0) return false; // ошибка потока или пустое состояние
+  // Чужие/повреждённые данные отклоняем (текущее состояние остаётся прежним)
+  uint32_t magic = 0;
+  if (chunk.Get(&magic, 0) < 0 || magic != kStateMagic) return false;
+  const bool ok = UnserializeState(chunk, 0) > 0;
+  if (ok) OnRestoreState();
+  // Значения параметров изменились вне событий хоста — по спецификации CLAP нужно запросить rescan
+  if (ok)
+  {
+    const clap_host* h = _host.host();
+    const auto* params = h ? static_cast<const clap_host_params*>(h->get_extension(h, CLAP_EXT_PARAMS)) : nullptr;
+    if (params && params->rescan) params->rescan(h, CLAP_PARAM_RESCAN_VALUES | CLAP_PARAM_RESCAN_TEXT);
+  }
+  return ok;
+}
+
+bool TwoonemoonSoundLab::paramsValueToText(clap_id paramIdx, double value, char* display, uint32_t size) noexcept
+{
+  // Ступенчатые параметры (Bool/Enum/Int) отображаются для округлённого значения
+  if (paramIdx >= static_cast<clap_id>(NParams())) return false;
+  const IParam* pParam = GetParam(static_cast<int>(paramIdx));
+  const bool isDouble = pParam->Type() == IParam::kTypeDouble;
+  if (!isDouble) value = std::round(value);
+  WDL_String str;
+  pParam->GetDisplay(value, isDouble, str);
+  if (CStringHasContents(pParam->GetLabel()))
+  {
+    str.Append(" ");
+    str.Append(pParam->GetLabel());
+  }
+  if (size <= static_cast<uint32_t>(str.GetLength())) return false;
+  strcpy(display, str.Get());
+  return true;
+}
+
+bool TwoonemoonSoundLab::audioPortsGetConfig(uint32_t index, clap_audio_ports_config* pConfig) const noexcept
+{
+  // Исправленная версия: у каждой конфигурации ровно один главный вход и выход
+  if (index >= static_cast<uint32_t>(NIOConfigs())) return false;
+  const IOConfig* cfg = GetIOConfig(static_cast<int>(index));
+  const uint32_t nIn = static_cast<uint32_t>(cfg->NChansOnBusSAFE(ERoute::kInput, 0));
+  const uint32_t nOut = static_cast<uint32_t>(cfg->NChansOnBusSAFE(ERoute::kOutput, 0));
+  auto portType = [](uint32_t n) { return n == 2 ? CLAP_PORT_STEREO : (n == 1 ? CLAP_PORT_MONO : nullptr); };
+  pConfig->id = index;
+  snprintf(pConfig->name, CLAP_NAME_SIZE, "%u-%u", nIn, nOut);
+  pConfig->input_port_count = static_cast<uint32_t>(cfg->NBuses(ERoute::kInput));
+  pConfig->output_port_count = static_cast<uint32_t>(cfg->NBuses(ERoute::kOutput));
+  pConfig->has_main_input = pConfig->input_port_count >= 1;
+  pConfig->main_input_channel_count = pConfig->has_main_input ? nIn : 0;
+  pConfig->main_input_port_type = portType(pConfig->main_input_channel_count);
+  pConfig->has_main_output = pConfig->output_port_count >= 1;
+  pConfig->main_output_channel_count = pConfig->has_main_output ? nOut : 0;
+  pConfig->main_output_port_type = portType(pConfig->main_output_channel_count);
+  return true;
+}
+#endif
 
 void TwoonemoonSoundLab::OnRestoreState()
 {
@@ -534,7 +616,9 @@ void TwoonemoonSoundLab::OnReset()
     mOutBuf[c].assign(static_cast<size_t>(mBufSize), 0.f);
   }
   mEngine.prepare(sr, mBufSize);
-  SetLatency(mEngine.latencySamples());
+  // Сообщать хосту только об изменении (CLAP: latency.changed допустим лишь внутри activate)
+  const int lat = mEngine.latencySamples();
+  if (lat != GetLatency()) SetLatency(lat);
 }
 
 void TwoonemoonSoundLab::OnActivate(bool active)
@@ -556,6 +640,7 @@ void TwoonemoonSoundLab::ProcessBlock(sample** inputs, sample** outputs, int nFr
 
   handlePresetAudio();
   for (int i = 0; i < tsl::kNumParams; ++i) mEngine.setParam(i, static_cast<float>(GetParam(i)->Value()));
+  updateTailSize();
 
   tsl::TransportInfo t;
   t.tempo = GetTempo();
@@ -578,6 +663,31 @@ void TwoonemoonSoundLab::ProcessBlock(sample** inputs, sample** outputs, int nFr
       for (int i = 0; i < n; ++i) outputs[c][offset + i] = 0.0;
     offset += n;
   }
+}
+
+void TwoonemoonSoundLab::updateTailSize()
+{
+  // «Хвост» после затихания входа: фильтры/усилитель/кабинет + задержка + реверберация.
+  // Хост может перестать вызывать обработку только после этого времени тишины на входе.
+  const double sr = GetSampleRate();
+  auto on = [this](int id) { return GetParam(id)->Bool(); };
+  if (on(tsl::kRvbOn) && on(tsl::kRvbFreeze))
+  {
+    if (!GetTailIsInfinite()) SetTailSize(kTailInfinite);
+    return;
+  }
+  double sec = 0.5; // кабинет, усилитель, модуляции, сдвиг высоты
+  if (on(tsl::kDlyOn))
+  {
+    const double fb = std::clamp(GetParam(tsl::kDlyFeedback)->Value() * 0.01, 0.0, 0.98);
+    const double t = std::max(0.001, mEngine.isPrepared() ? 2.0 : 2.0); // максимум времени задержки
+    const double repeats = fb > 0.001 ? std::log(0.001) / std::log(fb) : 1.0; // до −60 дБ
+    sec += t * std::min(repeats, 400.0);
+  }
+  if (on(tsl::kRvbOn)) sec += GetParam(tsl::kRvbDecay)->Value() * 1.5;
+  const int samples = static_cast<int>(std::min(sec, 600.0) * sr);
+  const int cur = GetTailSize();
+  if (GetTailIsInfinite() || std::abs(samples - cur) > cur / 10 + 1) SetTailSize(samples);
 }
 
 void TwoonemoonSoundLab::ProcessMidiMsg(const IMidiMsg& msg)

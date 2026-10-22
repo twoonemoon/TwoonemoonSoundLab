@@ -79,8 +79,17 @@ public:
 
   void OnIdle() override;
 
+#if defined(CLAP_API)
+  // Исправления поведения CLAP-обёртки (см. docs/TESTING.md)
+  bool stateSave(const clap_ostream* pStream) noexcept override;
+  bool stateLoad(const clap_istream* pStream) noexcept override;
+  bool paramsValueToText(clap_id paramIdx, double value, char* display, uint32_t size) noexcept override;
+  bool audioPortsGetConfig(uint32_t index, clap_audio_ports_config* pConfig) const noexcept override;
+#endif
+
 private:
   void initParams();
+  void updateTailSize();
   void applyNow(const tsl::ParamValues& v, const tsl::ChainConfig& chain);
   void finishPresetLoad();
   void handlePresetAudio(); // audio thread
