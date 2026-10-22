@@ -36,8 +36,12 @@ add_library(TwoonemoonCore STATIC
   Source/Effects/Reverb.cpp
   Source/Effects/Modulation.cpp
   Source/Effects/PitchFx.cpp
+  Source/Presets/Preset.cpp
+  Source/Presets/FactoryPresets.cpp
 )
 target_include_directories(TwoonemoonCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+# nlohmann/json (MIT) — заголовочная библиотека из состава iPlug2
+target_include_directories(TwoonemoonCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/iPlug2/Dependencies/Extras)
 target_compile_options(TwoonemoonCore PRIVATE -Wall -Wextra -Wno-unused-parameter)
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   target_compile_options(TwoonemoonCore PRIVATE -O3)
