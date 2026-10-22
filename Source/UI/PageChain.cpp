@@ -32,6 +32,13 @@ IColor moduleColor(ModuleId id)
     case ModuleId::Rotary: return IColor(255, 200, 170, 120);
     case ModuleId::Delay: return IColor(255, 120, 180, 230);
     case ModuleId::Reverb: return IColor(255, 150, 140, 240);
+    case ModuleId::Wah: return IColor(255, 200, 130, 90);
+    case ModuleId::Octave: return IColor(255, 110, 190, 150);
+    case ModuleId::Pitch: return IColor(255, 120, 220, 210);
+    case ModuleId::Harmonizer: return IColor(255, 230, 140, 200);
+    case ModuleId::Widener: return IColor(255, 140, 200, 230);
+    case ModuleId::Looper: return IColor(255, 230, 120, 120);
+    case ModuleId::Limiter: return IColor(255, 228, 86, 92);
     default: return col::steel;
   }
 }
@@ -198,7 +205,7 @@ private:
     const int secCols = mParallel ? std::max({ secA, secB, 1 }) : 0;
     const int total = cols + secCols;
     const float avail = mRECT.W() - 80.f;
-    mTileW = std::clamp(avail / std::max(total, 1) - 6.f, 48.f, 92.f);
+    mTileW = std::clamp(avail / std::max(total, 1) - 6.f, 34.f, 92.f);
     mTileH = std::min(96.f, mRECT.H() * 0.34f);
     mLaneOffset = mTileH * 0.5f + 18.f;
     const float colW = mTileW + 6.f;

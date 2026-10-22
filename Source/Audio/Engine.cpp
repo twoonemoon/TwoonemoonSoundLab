@@ -9,6 +9,7 @@
 #include "../Effects/Eq.h"
 #include "../Effects/Modulation.h"
 #include "../Effects/PitchFx.h"
+#include "../Effects/Utility.h"
 #include "../Effects/Reverb.h"
 #include "../Effects/Drives.h"
 #include "../Effects/NoiseGate.h"
@@ -52,6 +53,9 @@ const ModuleMeta kModuleMeta[kNumModules] = {
   { ModuleId::Octave, "octave", "Octave", kOctOn, "OCT" },
   { ModuleId::Pitch, "pitch", "Pitch", kPitchOn, "PIT" },
   { ModuleId::Harmonizer, "harmonizer", "Harmonizer", kHarmOn, "HRM" },
+  { ModuleId::Widener, "widener", "Widener", kWidOn, "WID" },
+  { ModuleId::Looper, "looper", "Looper", kLoopOn, "LOOP" },
+  { ModuleId::Limiter, "limiter", "Limiter", kLimOn, "LIM" },
 };
 
 constexpr float kSafetyCeiling = 4.0f; // +12 дБFS — аварийный потолок, не «звуковой» лимитер
@@ -76,7 +80,8 @@ ChainOrder defaultChainOrder() noexcept
   return { ModuleId::Gate,    ModuleId::Compressor, ModuleId::Wah,        ModuleId::EnvFilter, ModuleId::Octave,  ModuleId::Pitch,
            ModuleId::Boost,   ModuleId::Overdrive,  ModuleId::Distortion, ModuleId::Fuzz,      ModuleId::Amp,     ModuleId::Cabinet,
            ModuleId::Harmonizer, ModuleId::Eq,      ModuleId::Chorus,     ModuleId::Phaser,    ModuleId::Flanger, ModuleId::Vibrato,
-           ModuleId::Tremolo, ModuleId::Rotary,     ModuleId::Delay,      ModuleId::Reverb };
+           ModuleId::Tremolo, ModuleId::Rotary,     ModuleId::Delay,      ModuleId::Reverb,    ModuleId::Widener, ModuleId::Looper,
+           ModuleId::Limiter };
 }
 
 bool isValidChainOrder(const ChainOrder& order) noexcept
@@ -124,6 +129,9 @@ Engine::Engine()
   mModules[static_cast<size_t>(ModuleId::Octave)] = std::make_unique<Octave>();
   mModules[static_cast<size_t>(ModuleId::Pitch)] = std::make_unique<PitchShift>();
   mModules[static_cast<size_t>(ModuleId::Harmonizer)] = std::make_unique<Harmonizer>();
+  mModules[static_cast<size_t>(ModuleId::Widener)] = std::make_unique<Widener>();
+  mModules[static_cast<size_t>(ModuleId::Looper)] = std::make_unique<Looper>();
+  mModules[static_cast<size_t>(ModuleId::Limiter)] = std::make_unique<Limiter>();
 
   for (int i = 0; i < kNumParams; ++i) mParams[static_cast<size_t>(i)] = paramSpec(i).defaultValue;
   mOrderSlots[0] = mOrderSlots[1] = mActiveCfg = mPendingCfg = ChainConfig{};
@@ -166,6 +174,9 @@ void Engine::prepare(double sampleRate, int maxBlockSize)
     mModuleActive[static_cast<size_t>(i)] = on;
   }
 
+  mMetronome.prepare(mSampleRate);
+  mMetroGain.prepare(sr, 0.02f);
+  mMetroGain.snap(0.f);
   mInMeter.prepare(sr);
   mOutMeter.prepare(sr);
   mTunerRing.prepare(static_cast<size_t>(sr)); // ~1 с
@@ -231,6 +242,9 @@ void Engine::updateModules() noexcept
   mOutGain.setTarget(dbToGain(mParams[kOutputTrim]));
   mBypassMix.setTarget(mParams[kBypass] >= 0.5f ? 0.0f : 1.0f);
   mTunerMute.setTarget(mParams[kTunerMute] >= 0.5f ? 1.0f : 0.0f);
+  const bool metroOn = mParams[kMetroOn] >= 0.5f;
+  if (metroOn && mMetroGain.target() <= 0.f) mMetronome.reset(); // первая доля — сразу при включении
+  mMetroGain.setTarget(metroOn ? dbToGain(mParams[kMetroLevel]) : 0.f);
   const float pm = mParams[kParallelMix] * 0.01f;
   mParallelA.setTarget(std::min(1.f, 2.f * (1.f - pm)));
   mParallelB.setTarget(std::min(1.f, 2.f * pm));
@@ -458,14 +472,27 @@ void Engine::processChunk(const float* const* in, int nIn, float** out, int nOut
   }
   const float* dL = mDryL.data();
   const float* dR = dryStereo ? mDryR.data() : mDryL.data();
+  // Метроном: щелчки добавляются после bypass (слышны и в обходе), глушатся тюнером
+  const bool metro = mMetroGain.target() > 0.f || mMetroGain.isSmoothing();
+  if (metro)
+  {
+    clearBuffer(mBL.data(), n);
+    clearBuffer(mBR.data(), n);
+    const bool hostT = mParams[kHostTempo] >= 0.5f && t.hostTempoValid && t.tempo > 1.0;
+    const double tempo = hostT ? t.tempo : static_cast<double>(mParams[kTempo]);
+    const double ppq = t.ppqPos + (static_cast<double>(off) / mSampleRate) * tempo / 60.0;
+    const float g0 = mMetroGain.current();
+    const float g1 = mMetroGain.skip(n);
+    mMetronome.render(mBL.data(), mBR.data(), n, tempo, hostT && t.playing, ppq, 0.5f * (g0 + g1), mParams[kMetroAccent] >= 0.5f);
+  }
   float* oL = out[0] + off;
   float* oR = (nOut > 1 && out[1]) ? out[1] + off : nullptr;
   for (int i = 0; i < n; ++i)
   {
     const float w = mBypassMix.next();
     const float mute = (1.0f - mTunerMute.next()) * mTransition.next();
-    const float l = (dL[i] + w * (L[i] - dL[i])) * mute;
-    const float r = stereo ? (dR[i] + w * (R[i] - dR[i])) * mute : l;
+    const float l = (dL[i] + w * (L[i] - dL[i]) + (metro ? mBL[i] : 0.f)) * mute;
+    const float r = stereo ? (dR[i] + w * (R[i] - dR[i]) + (metro ? mBR[i] : 0.f)) * mute : l;
     if (oR)
     {
       oL[i] = l;

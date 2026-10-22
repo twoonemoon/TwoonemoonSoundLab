@@ -198,23 +198,37 @@ public:
   }
   void Draw(IGraphics& gr) override
   {
+    // Показываем только включённые модули в порядке обработки (выключенных — 25, места на все нет)
     mMask = 0;
     mSerial = mPlugin->stateSerial();
     const ChainOrder order = mPlugin->chainOrder();
-    const float w = mRECT.W() / static_cast<float>(kNumModules);
-    for (int i = 0; i < kNumModules; ++i)
+    std::vector<ModuleId> on;
+    for (ModuleId id : order)
+      if (mPlugin->GetParam(moduleEnableParam(id))->Bool())
+      {
+        on.push_back(id);
+        mMask |= 1u << static_cast<int>(id);
+      }
+    if (on.empty())
     {
-      const ModuleId id = order[static_cast<size_t>(i)];
-      const bool on = mPlugin->GetParam(moduleEnableParam(id))->Bool();
-      if (on) mMask |= 1u << static_cast<int>(id);
-      const IRECT cell = IRECT(mRECT.L + w * i, mRECT.T, mRECT.L + w * (i + 1), mRECT.B).GetPadded(-1.5f, -8.f, -1.5f, -8.f);
+      gr.DrawText(txt(11.f, col::text3, font::regular), "Все модули выключены — сигнал проходит без обработки", mRECT);
+      return;
+    }
+    const float cw = std::min(64.f, (mRECT.W() - 10.f * (on.size() - 1)) / on.size());
+    float x = mRECT.MW() - (cw * on.size() + 10.f * (on.size() - 1)) * 0.5f;
+    for (size_t i = 0; i < on.size(); ++i)
+    {
+      const IRECT cell(x, mRECT.T + 8.f, x + cw, mRECT.B - 8.f);
+      const IColor c = moduleColor(on[i]);
       gr.PathClear();
       gr.PathRoundRect(cell, cell.H() * 0.5f);
-      gr.PathFill(on ? IColor(40, 196, 92, 166) : col::bg2);
+      gr.PathFill(IColor(46, c.R, c.G, c.B));
       gr.PathClear();
       gr.PathRoundRect(cell.GetPadded(-0.5f), cell.H() * 0.5f);
-      gr.PathStroke(on ? IColor(150, 196, 92, 166) : col::hairline, 1.f);
-      gr.DrawText(txt(9.5f, on ? col::text : col::text3, font::semibold), moduleShortName(id), cell);
+      gr.PathStroke(IColor(170, c.R, c.G, c.B), 1.f);
+      gr.DrawText(txt(9.5f, col::text, font::semibold), moduleShortName(on[i]), cell);
+      if (i + 1 < on.size()) gr.DrawLine(col::text3, cell.R + 2.f, cell.MH(), cell.R + 8.f, cell.MH(), nullptr, 1.f);
+      x += cw + 10.f;
     }
   }
 

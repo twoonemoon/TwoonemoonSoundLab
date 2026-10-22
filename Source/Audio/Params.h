@@ -340,7 +340,18 @@ inline constexpr const char* kHarmInterval[] = { "-Octave", "-7th", "-6th", "-5t
   X(HarmV4Level, "harm.v4.level", "Harm Voice 4 Level", "Harmonizer", Float, 0.0f, 100.0f, 40.0f, 0.1f, Linear, Percent, nullptr, 0) \
   X(HarmV4Pan, "harm.v4.pan", "Harm Voice 4 Pan", "Harmonizer", Float, -100.0f, 100.0f, 0.0f, 0.1f, Linear, Percent, nullptr, 0) \
   X(HarmV4Delay, "harm.v4.delay", "Harm Voice 4 Delay", "Harmonizer", Float, 0.0f, 60.0f, 25.0f, 0.1f, Linear, Ms, nullptr, 0) \
-  X(HarmV4Detune, "harm.v4.detune", "Harm Voice 4 Detune", "Harmonizer", Float, -30.0f, 30.0f, 0.0f, 0.1f, Linear, Cents, nullptr, 0)
+  X(HarmV4Detune, "harm.v4.detune", "Harm Voice 4 Detune", "Harmonizer", Float, -30.0f, 30.0f, 0.0f, 0.1f, Linear, Cents, nullptr, 0) \
+  X(WidOn, "wid.on", "Widener On", "Widener", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(WidWidth, "wid.width", "Widener Width", "Widener", Float, 0.0f, 200.0f, 130.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(WidMonoBelow, "wid.monoBelow", "Widener Mono Below", "Widener", Float, 20.0f, 500.0f, 120.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(LimOn, "lim.on", "Limiter On", "Limiter", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(LimCeiling, "lim.ceiling", "Limiter Ceiling", "Limiter", Float, -12.0f, 0.0f, -1.0f, 0.1f, Linear, dB, nullptr, 0) \
+  X(LimRelease, "lim.release", "Limiter Release", "Limiter", Float, 10.0f, 500.0f, 80.0f, 0.1f, Exp, Ms, nullptr, 0) \
+  X(LoopOn, "loop.on", "Looper On", "Looper", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(LoopLevel, "loop.level", "Looper Level", "Looper", Float, -40.0f, 6.0f, 0.0f, 0.1f, Linear, dB, nullptr, 0) \
+  X(MetroOn, "metro.on", "Metronome On", "Metronome", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(MetroLevel, "metro.level", "Metronome Level", "Metronome", Float, -40.0f, 0.0f, -12.0f, 0.1f, Linear, dB, nullptr, 0) \
+  X(MetroAccent, "metro.accent", "Metronome Accent", "Metronome", Bool, 0.0f, 1.0f, 1.0f, 1.0f, Linear, None, nullptr, 0)
 
 enum ParamId : int
 {

@@ -8,6 +8,7 @@
 #include "Effects/Delay.h"
 #include "Effects/NoiseGate.h"
 #include "Effects/PitchFx.h"
+#include "Effects/Utility.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -19,7 +20,7 @@ using namespace tsl;
 
 namespace {
 
-enum class CtlKind { Knob, Selector, Toggle, GateMeter, CompMeter, DelayTime, Voice, HarmInfo, Latency };
+enum class CtlKind { Knob, Selector, Toggle, GateMeter, CompMeter, DelayTime, Voice, HarmInfo, Latency, LooperPanel, LimiterMeter, Correlation };
 
 struct FxCtl
 {
@@ -95,6 +96,12 @@ const std::vector<FxSpec>& fxSpecs()
                                     { K::Knob, kRvbSize, "Size" }, { K::Knob, kRvbPreDelay, "Pre-delay" }, { K::Knob, kRvbEarly, "Early" }, { K::Knob, kRvbDiffusion, "Diffusion" },
                                     { K::Knob, kRvbHighDamp, "High Damp" }, { K::Knob, kRvbLowCut, "Low Cut" }, { K::Knob, kRvbModulation, "Modulation" }, { K::Knob, kRvbWidth, "Width" },
                                     { K::Knob, kRvbShimmer, "Shimmer" } } },
+    { ModuleId::Widener, "Утилиты", "Stereo Widener", "Расширяет стереобазу (работает со стерео-сигналом — после хоруса, задержки, двойного кабинета). Mono Below оставляет бас в моно, чтобы звук не терялся при сложении каналов.",
+      IColor(255, 140, 200, 230), { { K::Correlation, -1, "" }, { K::Knob, kWidWidth, "Width" }, { K::Knob, kWidMonoBelow, "Mono Below" } } },
+    { ModuleId::Looper, "Утилиты", "Looper", "Лупер до 30 секунд: Rec — запись первой петли, повторное нажатие — воспроизведение; затем Rec/Overdub — наложение. Петля записывается после всех эффектов.",
+      IColor(255, 230, 120, 120), { { K::LooperPanel, -1, "" }, { K::Knob, kLoopLevel, "Level" } } },
+    { ModuleId::Limiter, "Утилиты", "Output Limiter", "Защитный ограничитель уровня на выходе (без задержки). По умолчанию выключен: включайте, если нужен гарантированный потолок, например при игре в наушниках.",
+      IColor(255, 228, 86, 92), { { K::LimiterMeter, -1, "Ограничение" }, { K::Knob, kLimCeiling, "Ceiling" }, { K::Knob, kLimRelease, "Release" } } },
   };
   return specs;
 }
@@ -119,6 +126,7 @@ public:
     }
     if (sel) g.FillRect(mSpec->color, IRECT(mRECT.L + 2.f, mRECT.T + 8.f, mRECT.L + 4.f, mRECT.B - 8.f));
     const float ledX = mRECT.L + 18.f, ledY = mRECT.MH();
+    (void)0;
     if (on)
     {
       g.PathClear();
@@ -126,7 +134,7 @@ public:
       g.PathFill(IPattern::CreateRadialGradient(ledX, ledY, 9.f, { { IColor(120, mSpec->color.R, mSpec->color.G, mSpec->color.B), 0.f }, { IColor(0, mSpec->color.R, mSpec->color.G, mSpec->color.B), 1.f } }));
     }
     g.FillCircle(on ? mSpec->color : col::bg3, ledX, ledY, 4.f);
-    g.DrawText(txt(12.f, sel ? col::text : (on ? IColor(255, 210, 212, 218) : col::text2), sel ? font::semibold : font::medium, EAlign::Near), mSpec->title,
+    g.DrawText(txt(11.5f, sel ? col::text : (on ? IColor(255, 210, 212, 218) : col::text2), sel ? font::semibold : font::medium, EAlign::Near), mSpec->title,
                mRECT.GetReducedFromLeft(34.f));
   }
   void OnMouseDown(float x, float, const IMouseMod&) override
@@ -168,6 +176,88 @@ public:
 private:
   tsl::Delay* mDelay;
   float mShown = -1.f;
+};
+
+/** Панель лупера: кнопки и индикатор состояния/позиции. */
+class LooperPanelView : public IControl
+{
+public:
+  LooperPanelView(const IRECT& r, Looper* lp) : IControl(r), mLp(lp) {}
+  bool IsDirty() override { return true; }
+  void Draw(IGraphics& g) override
+  {
+    static const char* kState[5] = { "Пусто", "Запись…", "Воспроизведение", "Наложение…", "Стоп" };
+    const auto st = mLp->state();
+    const char* labels[4] = { st == Looper::State::Recording ? "Стоп записи" : "Rec", st == Looper::State::Playing || st == Looper::State::Overdubbing ? "Stop" : "Play",
+                              "Overdub", "Clear" };
+    for (int i = 0; i < 4; ++i)
+    {
+      const IRECT b = button(i);
+      const bool hot = (i == 0 && (st == Looper::State::Recording)) || (i == 2 && st == Looper::State::Overdubbing) || (i == 1 && st == Looper::State::Playing);
+      g.PathClear();
+      g.PathRoundRect(b, b.H() * 0.5f);
+      g.PathFill(hot ? IColor(90, 228, 86, 92) : col::bg3);
+      g.DrawText(txt(12.f, col::text, font::medium), labels[i], b);
+    }
+    const IRECT bar(mRECT.L, mRECT.B - 26.f, mRECT.R, mRECT.B - 16.f);
+    g.PathClear();
+    g.PathRoundRect(bar, 5.f);
+    g.PathFill(IColor(255, 12, 13, 16));
+    if (mLp->lengthSeconds() > 0.f)
+    {
+      g.PathClear();
+      g.PathRoundRect(IRECT(bar.L, bar.T, bar.L + bar.W() * mLp->position(), bar.B), 5.f);
+      g.PathFill(col::accent);
+    }
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%s · %.1f с", kState[static_cast<int>(st)], mLp->lengthSeconds());
+    g.DrawText(txt(11.f, col::text2, font::mono, EAlign::Near), buf, IRECT(mRECT.L, mRECT.B - 14.f, mRECT.R, mRECT.B));
+  }
+  void OnMouseDown(float x, float y, const IMouseMod&) override
+  {
+    const Looper::Command cmds[4] = { Looper::Command::RecordToggle, Looper::Command::PlayStop, Looper::Command::Overdub, Looper::Command::Clear };
+    for (int i = 0; i < 4; ++i)
+      if (button(i).Contains(x, y))
+      {
+        // Команды выполняет аудиопоток модуля — выключенный лупер включаем автоматически
+        if (i != 3 && GetDelegate()->GetParam(tsl::kLoopOn)->Value() < 0.5)
+        {
+          GetDelegate()->BeginInformHostOfParamChangeFromUI(tsl::kLoopOn);
+          GetDelegate()->SendParameterValueFromUI(tsl::kLoopOn, 1.0);
+          GetDelegate()->EndInformHostOfParamChangeFromUI(tsl::kLoopOn);
+        }
+        mLp->command(cmds[i]);
+      }
+  }
+
+private:
+  IRECT button(int i) const { return IRECT(mRECT.L + i * 132.f, mRECT.T, mRECT.L + i * 132.f + 122.f, mRECT.T + 34.f); }
+  Looper* mLp;
+};
+
+/** Корреляция каналов (моносовместимость). */
+class CorrelationView : public IControl
+{
+public:
+  CorrelationView(const IRECT& r, Widener* w) : IControl(r), mW(w) { mIgnoreMouse = true; }
+  bool IsDirty() override { return true; }
+  void Draw(IGraphics& g) override
+  {
+    const float c = mW->correlation();
+    drawCapsLabel(g, "Корреляция (моносовместимость)", mRECT.GetFromTop(14.f), col::text3, 9.f, EAlign::Near);
+    const IRECT bar(mRECT.L, mRECT.T + 20.f, mRECT.R, mRECT.T + 30.f);
+    g.PathClear();
+    g.PathRoundRect(bar, 5.f);
+    g.PathFill(IColor(255, 12, 13, 16));
+    const float x = bar.MW() + bar.W() * 0.5f * std::clamp(c, -1.f, 1.f);
+    g.FillRect(c < 0.f ? col::hot : col::ok, IRECT(std::min(x, bar.MW()), bar.T + 2.f, std::max(x, bar.MW()), bar.B - 2.f));
+    g.DrawLine(col::text3, bar.MW(), bar.T - 2.f, bar.MW(), bar.B + 2.f, nullptr, 1.f);
+    g.DrawText(txt(9.f, col::text3, font::mono, EAlign::Near), "−1", IRECT(bar.L, bar.B + 2.f, bar.L + 30.f, bar.B + 14.f));
+    g.DrawText(txt(9.f, col::text3, font::mono, EAlign::Far), "+1", IRECT(bar.R - 30.f, bar.B + 2.f, bar.R, bar.B + 14.f));
+  }
+
+private:
+  Widener* mW;
 };
 
 /** Определённая нота и задержка голосов гармонайзера. */
@@ -228,7 +318,7 @@ void buildFxPage(UIContext& ctx, const char* page)
   // ---- Список
   const IRECT list = content.GetFromLeft(250.f);
   ctx.add(new Canvas(list, [](IGraphics& g, const IRECT& r) { drawHardwarePanel(g, r, 12.f); }), page);
-  float y = list.T + 8.f;
+  float y = list.T + 6.f;
   const char* lastCat = "";
   std::vector<std::string> groups;
   for (size_t i = 0; i < specs.size(); ++i)
@@ -237,11 +327,11 @@ void buildFxPage(UIContext& ctx, const char* page)
     if (std::string(lastCat) != s.category)
     {
       lastCat = s.category;
-      ctx.add(new Label(IRECT(list.L + 16.f, y, list.R - 10.f, y + 14.f), s.category, txt(8.5f, col::text3, font::semibold, EAlign::Near), true), page);
-      y += 15.f;
+      ctx.add(new Label(IRECT(list.L + 16.f, y, list.R - 10.f, y + 12.f), s.category, txt(8.f, col::text3, font::semibold, EAlign::Near), true), page);
+      y += 13.f;
     }
     const int idx = static_cast<int>(i);
-    ctx.add(new FxListItem(IRECT(list.L + 6.f, y, list.R - 6.f, y + 21.f), &s, plugin,
+    ctx.add(new FxListItem(IRECT(list.L + 6.f, y, list.R - 6.f, y + 18.f), &s, plugin,
                            [&ctx, selected, idx]() {
                              *selected = idx;
                              ctx.notify(-1);
@@ -249,7 +339,7 @@ void buildFxPage(UIContext& ctx, const char* page)
                            },
                            [selected, idx]() { return *selected == idx; }),
             page);
-    y += 21.f;
+    y += 18.f;
   }
 
   // ---- Детальные панели (по одной на модуль; видна только выбранная)
@@ -337,6 +427,22 @@ void buildFxPage(UIContext& ctx, const char* page)
           ++voiceRow;
           break;
         }
+        case CtlKind::LooperPanel:
+          ctx.g->AttachControl(new LooperPanelView(IRECT(detail.L + 24.f, selY, detail.L + 560.f, selY + 70.f), static_cast<Looper*>(engine.module(ModuleId::Looper))), kNoTag, grp);
+          sx += 1.f;
+          knobsArea = knobsArea.GetReducedFromTop(36.f); // панель лупера выше обычной строки селекторов
+          break;
+        case CtlKind::LimiterMeter:
+        {
+          auto* lim = static_cast<Limiter*>(engine.module(ModuleId::Limiter));
+          ctx.g->AttachControl(new ReductionMeter(IRECT(detail.L + 24.f, detail.B - 54.f, detail.R - 24.f, detail.B - 24.f),
+                                                  [lim]() { return lim->gainReductionDb(); }, c.label, 24.f), kNoTag, grp);
+          break;
+        }
+        case CtlKind::Correlation:
+          ctx.g->AttachControl(new CorrelationView(IRECT(detail.L + 24.f, selY, detail.L + 420.f, selY + 46.f), static_cast<Widener*>(engine.module(ModuleId::Widener))), kNoTag, grp);
+          sx += 1.f;
+          break;
         case CtlKind::Knob: knobs.push_back(&c); break;
       }
     }

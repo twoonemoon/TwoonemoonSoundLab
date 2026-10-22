@@ -36,6 +36,9 @@ enum class ModuleId : int
   Octave,
   Pitch,
   Harmonizer,
+  Widener,
+  Looper,
+  Limiter,
   Count
 };
 

@@ -200,8 +200,11 @@ void buildSettingsPage(UIContext& ctx, const char* page)
   ctx.add(new TapTempoButton(IRECT(proc.L + 330.f, proc.T + 66.f, proc.L + 440.f, proc.T + 94.f), &ctx), page);
   ctx.add(new ToggleChip(IRECT(proc.L + 330.f, proc.T + 104.f, proc.L + 470.f, proc.T + 128.f), kHostTempo, "Темп хоста"), page);
   ctx.add(new Knob(IRECT(proc.R - 96.f, proc.T + 52.f, proc.R - 16.f, proc.T + 140.f), kTunerRef, "A4 Ref", KnobStyle::Small), page);
-  ctx.add(new Label(IRECT(proc.L + 18.f, proc.T + 150.f, proc.R - 18.f, proc.T + 190.f),
-                    "Oversampling не добавляет задержку. Tap Tempo переключает на ручной темп.", txt(11.f, col::text3, font::regular, EAlign::Near)),
+  ctx.add(new ToggleChip(IRECT(proc.L + 18.f, proc.T + 150.f, proc.L + 150.f, proc.T + 174.f), kMetroOn, "Метроном"), page);
+  ctx.add(new ToggleChip(IRECT(proc.L + 160.f, proc.T + 150.f, proc.L + 290.f, proc.T + 174.f), kMetroAccent, "Акцент"), page);
+  ctx.add(new Knob(IRECT(proc.L + 300.f, proc.T + 132.f, proc.L + 360.f, proc.T + 196.f), kMetroLevel, "Level", KnobStyle::Small), page);
+  ctx.add(new Label(IRECT(proc.L + 370.f, proc.T + 146.f, proc.R - 18.f, proc.T + 180.f), "Клик 4/4 по темпу выше (или хоста)",
+                    txt(10.5f, col::text3, font::regular, EAlign::Near)),
           page);
 
   // ---- Интерфейс

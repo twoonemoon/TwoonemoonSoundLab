@@ -234,3 +234,88 @@ TEST_CASE("env filter: louder playing opens the filter (up mode)")
   };
   CHECK(band(0.5f) > band(0.01f) * 2.f);
 }
+
+#include "../../Source/Effects/Utility.h"
+
+TEST_CASE("utility: widener keeps bass mono, widens highs; limiter holds the ceiling")
+{
+  // Стерео-сигнал с боковой составляющей на НЧ и ВЧ
+  auto p = defaults();
+  p[kWidWidth] = 200.f;
+  p[kWidMonoBelow] = 200.f;
+  Widener w;
+  w.prepare({ 48000.0, 512 });
+  w.update(p);
+  const int n = 48000;
+  auto lo = sine(60.f, 0.2f, 48000.f, n), hi = sine(3000.f, 0.2f, 48000.f, n);
+  std::vector<float> l(n), r(n);
+  for (int i = 0; i < n; ++i) { l[i] = lo[i] + hi[i]; r[i] = -lo[i] + 0.5f * hi[i]; }
+  for (int pos = 0; pos < n; pos += 256)
+  {
+    AudioBlock b;
+    b.l = l.data() + pos; b.r = r.data() + pos; b.numFrames = 256; b.stereo = true;
+    w.process(b);
+  }
+  std::vector<float> side(n);
+  for (int i = 0; i < n; ++i) side[i] = 0.5f * (l[i] - r[i]);
+  CHECK(toneAmplitude(side, 24000, 60.f, 48000.f) < 0.03f);   // бас в моно
+  CHECK(toneAmplitude(side, 24000, 3000.f, 48000.f) > 0.09f); // верх расширен (было 0.05)
+
+  auto q = defaults();
+  q[kLimCeiling] = -6.f;
+  Limiter lim;
+  auto s = run(lim, noise(48000, 1.5f), q);
+  CHECK(peak(s.l) <= dbToGain(-6.f) + 1e-5f);
+  CHECK(lim.gainReductionDb() < -1.f);
+}
+
+TEST_CASE("utility: looper records, plays back and clears")
+{
+  auto p = defaults();
+  Looper lp;
+  lp.prepare({ 48000.0, 256 });
+  lp.update(p);
+  auto sig = sine(440.f, 0.3f, 48000.f, 24000);
+  std::vector<float> l(256), r(256);
+  auto block = [&](const float* src) {
+    for (int i = 0; i < 256; ++i) l[i] = src ? src[i] : 0.f;
+    AudioBlock b;
+    b.l = l.data(); b.r = r.data(); b.numFrames = 256;
+    lp.process(b);
+  };
+  lp.command(Looper::Command::RecordToggle);
+  for (int k = 0; k < 40; ++k) block(sig.data() + k * 256); // ~0.21 с записи
+  CHECK(lp.state() == Looper::State::Recording);
+  lp.command(Looper::Command::RecordToggle);
+  block(nullptr);
+  CHECK(lp.state() == Looper::State::Playing);
+  CHECK(std::fabs(lp.lengthSeconds() - 40 * 256 / 48000.f) < 0.01f);
+  float mx = 0.f;
+  for (int k = 0; k < 20; ++k) { block(nullptr); for (float v : l) mx = std::max(mx, std::fabs(v)); }
+  CHECK(mx > 0.25f); // петля звучит при тихом входе
+  lp.command(Looper::Command::Clear);
+  block(nullptr);
+  CHECK(lp.state() == Looper::State::Empty);
+  float mx2 = 0.f;
+  for (int k = 0; k < 4; ++k) { block(nullptr); for (float v : l) mx2 = std::max(mx2, std::fabs(v)); }
+  CHECK(mx2 < 1e-6f);
+}
+
+TEST_CASE("utility: metronome clicks at the tempo")
+{
+  Metronome m;
+  m.prepare(48000.0);
+  std::vector<float> l(96000, 0.f), r(96000, 0.f);
+  for (int pos = 0; pos < 96000; pos += 128) m.render(l.data() + pos, r.data() + pos, 128, 120.0, false, 0.0, 0.5f, true);
+  // 120 BPM → щелчок каждые 24000 отсчётов: 4 щелчка за 2 с
+  int clicks = 0;
+  bool inClick = false;
+  for (size_t i = 0; i < l.size(); ++i)
+  {
+    const bool on = std::fabs(l[i]) > 0.05f;
+    if (on && !inClick) ++clicks;
+    if (on) inClick = true;
+    else if (i % 2000 == 0) inClick = false;
+  }
+  CHECK_MSG(clicks == 4, "clicks %d", clicks);
+}

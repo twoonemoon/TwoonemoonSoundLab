@@ -15,6 +15,7 @@
 #include "../DSP/Meter.h"
 #include "../DSP/Smoother.h"
 #include "../DSP/SpscRing.h"
+#include "../Effects/Utility.h"
 #include <array>
 #include <atomic>
 #include <memory>
@@ -127,7 +128,8 @@ private:
   std::array<LinearSmoother, kNumModules> mModuleMix;
   std::array<bool, kNumModules> mModuleActive{};
 
-  LinearSmoother mInGain, mOutGain, mBypassMix, mTunerMute, mTransition;
+  LinearSmoother mInGain, mOutGain, mBypassMix, mTunerMute, mTransition, mMetroGain;
+  Metronome mMetronome;
   std::atomic<uint64_t> mBlocks{ 0 };
 
   // Рабочие буферы (выделены в prepare)

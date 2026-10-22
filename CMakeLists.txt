@@ -36,6 +36,7 @@ add_library(TwoonemoonCore STATIC
   Source/Effects/Reverb.cpp
   Source/Effects/Modulation.cpp
   Source/Effects/PitchFx.cpp
+  Source/Effects/Utility.cpp
   Source/Presets/Preset.cpp
   Source/Presets/FactoryPresets.cpp
   Source/Presets/UserSettings.cpp
