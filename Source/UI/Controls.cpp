@@ -147,10 +147,10 @@ void Knob::Draw(IGraphics& g)
   if (mMouseDown || mHover)
   {
     const std::string val = displayWithUnit(GetParam());
-    g.DrawText(txt(small ? 10.f : 11.f, col::text, font::monoMedium), val.c_str(), mValueRect);
+    g.DrawText(txt(small ? 10.f : 11.f, mLabelColor.R + mLabelColor.G + mLabelColor.B < 300 ? mLabelColor : col::text, font::monoMedium), val.c_str(), mValueRect);
   }
   else
-    drawCapsLabel(g, mLabel.c_str(), mLabelRect, col::text2, small ? 9.f : 10.f);
+    drawCapsLabel(g, mLabel.c_str(), mLabelRect, mLabelColor, small ? 9.f : 10.f);
 }
 
 void Knob::OnMouseDown(float x, float y, const IMouseMod& mod)

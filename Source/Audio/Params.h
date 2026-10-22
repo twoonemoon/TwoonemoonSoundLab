@@ -12,7 +12,7 @@
 
 namespace tsl {
 
-enum class ParamUnit : int { None, dB, Percent, Hz, Ms, Seconds, Semitones, Cents, Ratio, Bpm, Degrees };
+enum class ParamUnit : int { None, dB, Percent, Hz, Ms, Seconds, Semitones, Cents, Ratio, Bpm, Degrees, Cm };
 enum class ParamKind : int { Float, Bool, Enum, Int };
 enum class ParamShape : int { Linear, Exp, Pow2, Pow3 };
 
@@ -41,6 +41,9 @@ inline constexpr const char* kOversampling[] = { "Live 2x", "Standard 4x", "High
 inline constexpr const char* kAmpModel[] = { "Lumen Twin",   "Opal Bloom",   "Glass Garden",          "Velvet Edge",
                                              "Brass Circuit", "Rust Monarch", "Thorn Drive",           "Iron Veil",
                                              "Catacomb",      "Abyssal Lead", "Silver Current Acoustic", "Cedar Room Acoustic" };
+inline constexpr const char* kCabSpeaker[] = { "Aurum 1x12 Open", "Lumen 2x12 Open", "Monolith 4x12", "Vanta 4x12",
+                                               "Cedar 2x12",      "Ember 1x10",      "User IR" };
+inline constexpr const char* kCabMic[] = { "Forge D7 (dynamic)", "Pearl C9 (condenser)", "Silk R2 (ribbon)" };
 } // namespace labels
 
 #define TSL_N(arr) static_cast<int>(sizeof(arr) / sizeof(arr[0]))
@@ -130,7 +133,35 @@ inline constexpr const char* kAmpModel[] = { "Lumen Twin",   "Opal Bloom",   "Gl
   X(AcBody, "amp.acBody", "Body", "Amp", Float, 0.f, 10.f, 5.f, 0.01f, Linear, None, nullptr, 0)                      \
   X(AcPiezoTame, "amp.acPiezoTame", "Piezo Tame", "Amp", Float, 0.f, 10.f, 3.f, 0.01f, Linear, None, nullptr, 0)      \
   X(AcAir, "amp.acAir", "Air", "Amp", Float, 0.f, 10.f, 3.f, 0.01f, Linear, None, nullptr, 0)                         \
-  X(AcRoom, "amp.acRoom", "Room", "Amp", Float, 0.f, 10.f, 2.f, 0.01f, Linear, None, nullptr, 0)
+  X(AcRoom, "amp.acRoom", "Room", "Amp", Float, 0.f, 10.f, 2.f, 0.01f, Linear, None, nullptr, 0)                     \
+  /* ---------------- Cabinet ---------------- */                                                                     \
+  X(CabOn, "cab.on", "Cab On", "Cabinet", Bool, 0.f, 1.f, 1.f, 1.f, Linear, None, nullptr, 0)                         \
+  X(CabAOn, "cab.a.on", "Cab A On", "Cab A", Bool, 0.f, 1.f, 1.f, 1.f, Linear, None, nullptr, 0)              \
+  X(CabASpeaker, "cab.a.speaker", "Cab A Speaker", "Cab A", Enum, 0.f, 6.f, 2.f, 1.f, Linear, None, labels::kCabSpeaker, \
+    TSL_N(labels::kCabSpeaker))                                                                                        \
+  X(CabAMic, "cab.a.mic", "Cab A Mic", "Cab A", Enum, 0.f, 2.f, 0.f, 1.f, Linear, None, labels::kCabMic,           \
+    TSL_N(labels::kCabMic))                                                                                            \
+  X(CabAPosition, "cab.a.position", "Cab A Position", "Cab A", Float, 0.f, 100.f, 30.f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(CabADistance, "cab.a.distance", "Cab A Distance", "Cab A", Float, 1.f, 30.f, 3.f, 0.1f, Exp, Cm, nullptr, 0)    \
+  X(CabAAngle, "cab.a.angle", "Cab A Angle", "Cab A", Float, 0.f, 45.f, 0.f, 0.1f, Linear, Degrees, nullptr, 0)      \
+  X(CabALevel, "cab.a.level", "Cab A Level", "Cab A", Float, -24.f, 6.f, 0.f, 0.1f, Linear, dB, nullptr, 0)        \
+  X(CabAPan, "cab.a.pan", "Cab A Pan", "Cab A", Float, -100.f, 100.f, 0.f, 0.1f, Linear, Percent, nullptr, 0)         \
+  X(CabAPhase, "cab.a.phase", "Cab A Phase Invert", "Cab A", Bool, 0.f, 1.f, 0.f, 1.f, Linear, None, nullptr, 0)    \
+  X(CabADelay, "cab.a.delay", "Cab A Delay", "Cab A", Float, 0.f, 2.f, 0.f, 0.001f, Linear, Ms, nullptr, 0) \
+  X(CabBOn, "cab.b.on", "Cab B On", "Cab B", Bool, 0.f, 1.f, 0.f, 1.f, Linear, None, nullptr, 0)              \
+  X(CabBSpeaker, "cab.b.speaker", "Cab B Speaker", "Cab B", Enum, 0.f, 6.f, 2.f, 1.f, Linear, None, labels::kCabSpeaker, \
+    TSL_N(labels::kCabSpeaker))                                                                                        \
+  X(CabBMic, "cab.b.mic", "Cab B Mic", "Cab B", Enum, 0.f, 2.f, 2.f, 1.f, Linear, None, labels::kCabMic,           \
+    TSL_N(labels::kCabMic))                                                                                            \
+  X(CabBPosition, "cab.b.position", "Cab B Position", "Cab B", Float, 0.f, 100.f, 60.f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(CabBDistance, "cab.b.distance", "Cab B Distance", "Cab B", Float, 1.f, 30.f, 8.f, 0.1f, Exp, Cm, nullptr, 0)    \
+  X(CabBAngle, "cab.b.angle", "Cab B Angle", "Cab B", Float, 0.f, 45.f, 15.f, 0.1f, Linear, Degrees, nullptr, 0)      \
+  X(CabBLevel, "cab.b.level", "Cab B Level", "Cab B", Float, -24.f, 6.f, -3.f, 0.1f, Linear, dB, nullptr, 0)        \
+  X(CabBPan, "cab.b.pan", "Cab B Pan", "Cab B", Float, -100.f, 100.f, 0.f, 0.1f, Linear, Percent, nullptr, 0)         \
+  X(CabBPhase, "cab.b.phase", "Cab B Phase Invert", "Cab B", Bool, 0.f, 1.f, 0.f, 1.f, Linear, None, nullptr, 0)    \
+  X(CabBDelay, "cab.b.delay", "Cab B Delay", "Cab B", Float, 0.f, 2.f, 0.f, 0.001f, Linear, Ms, nullptr, 0) \
+  X(CabLowCut, "cab.lowCut", "Cab Low Cut", "Cabinet", Float, 20.f, 400.f, 60.f, 1.f, Exp, Hz, nullptr, 0)            \
+  X(CabHighCut, "cab.highCut", "Cab High Cut", "Cabinet", Float, 2000.f, 20000.f, 12000.f, 1.f, Exp, Hz, nullptr, 0)
 
 enum ParamId : int
 {

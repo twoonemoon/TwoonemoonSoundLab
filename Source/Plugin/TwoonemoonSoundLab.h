@@ -8,6 +8,8 @@
 #include "Audio/Params.h"
 
 #include <atomic>
+#include <functional>
+#include <string>
 #include <vector>
 
 class TwoonemoonSoundLab final : public iplug::Plugin
@@ -26,6 +28,13 @@ public:
   tsl::ChainOrder chainOrder() const { return mEngine.chainOrder(); }
   /** Изменение порядка цепочки — счётчик, по которому UI понимает, что нужно перерисоваться. */
   uint32_t stateSerial() const { return mStateSerial.load(); }
+  /** Загрузить пользовательский IR в слот кабинета (0 = A, 1 = B); путь сохраняется в состоянии проекта. */
+  void loadUserIR(int slot, const std::string& path);
+  std::string userIRPath(int slot) const { return mUserIR[slot & 1]; }
+  /** UI подписывается на изменения параметров (вызывается в UI thread). */
+  void setUIParamListener(std::function<void(int)> fn) { mUIParamListener = std::move(fn); }
+  void OnParamChangeUI(int paramIdx, iplug::EParamSource source) override;
+  void OnUIClose() override;
 
 #if IPLUG_DSP
   void ProcessBlock(iplug::sample** inputs, iplug::sample** outputs, int nFrames) override;
@@ -43,4 +52,6 @@ private:
   std::vector<float> mInBuf[2], mOutBuf[2];
   int mBufSize = 0;
   std::atomic<uint32_t> mStateSerial{ 0 };
+  std::string mUserIR[2];
+  std::function<void(int)> mUIParamListener;
 };

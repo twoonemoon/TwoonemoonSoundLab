@@ -2,6 +2,8 @@
 #include "TwoonemoonSoundLab.h"
 #include "IPlug_include_in_plug_src.h"
 
+#include "Cabinet/Cabinet.h"
+
 #if IPLUG_EDITOR
 #include "UI/MainUI.h"
 #endif
@@ -30,6 +32,7 @@ const char* unitLabel(tsl::ParamUnit u)
     case tsl::ParamUnit::Ratio: return ":1";
     case tsl::ParamUnit::Bpm: return "BPM";
     case tsl::ParamUnit::Degrees: return "deg";
+    case tsl::ParamUnit::Cm: return "cm";
     default: return "";
   }
 }
@@ -118,6 +121,9 @@ bool TwoonemoonSoundLab::SerializeState(IByteChunk& chunk) const
   const int32_t nm = tsl::kNumModules;
   chunk.Put(&nm);
   for (tsl::ModuleId id : order) chunk.PutStr(tsl::moduleKey(id));
+  // v1: пути пользовательских IR (слоты A, B)
+  chunk.PutStr(mUserIR[0].c_str());
+  chunk.PutStr(mUserIR[1].c_str());
   return true;
 }
 
@@ -172,8 +178,35 @@ int TwoonemoonSoundLab::UnserializeState(const IByteChunk& chunk, int pos)
       if (!used[static_cast<size_t>(id)] && count < tsl::kNumModules) order[static_cast<size_t>(count++)] = id;
     if (count == tsl::kNumModules) mEngine.setChainOrder(order);
   }
+  // Пользовательские IR: отсутствующий файл не ломает загрузку — слот покажет ошибку и предложит перепривязку
+  for (int s = 0; s < 2 && p >= 0; ++s)
+  {
+    WDL_String path;
+    const int np = chunk.GetStr(path, p);
+    if (np < 0) break;
+    p = np;
+    if (std::string(path.Get()) != mUserIR[s]) loadUserIR(s, path.Get());
+  }
   mStateSerial.fetch_add(1);
   return p < 0 ? chunk.Size() : p;
+}
+
+void TwoonemoonSoundLab::loadUserIR(int slot, const std::string& path)
+{
+  slot &= 1;
+  mUserIR[slot] = path;
+  if (auto* cab = static_cast<tsl::Cabinet*>(mEngine.module(tsl::ModuleId::Cabinet))) cab->requestUserIR(slot, path);
+  mStateSerial.fetch_add(1);
+}
+
+void TwoonemoonSoundLab::OnParamChangeUI(int paramIdx, EParamSource)
+{
+  if (mUIParamListener) mUIParamListener(paramIdx);
+}
+
+void TwoonemoonSoundLab::OnUIClose()
+{
+  mUIParamListener = nullptr;
 }
 
 void TwoonemoonSoundLab::OnRestoreState()

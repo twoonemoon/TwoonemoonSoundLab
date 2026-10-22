@@ -21,6 +21,7 @@ enum class ModuleId : int
   Distortion,
   Fuzz,
   Amp,
+  Cabinet,
   Count
 };
 

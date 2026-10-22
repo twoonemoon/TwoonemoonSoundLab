@@ -25,6 +25,11 @@ add_library(TwoonemoonCore STATIC
   Source/Effects/Drives.cpp
   Source/Amps/AmpVoices.cpp
   Source/Amps/Amp.cpp
+  Source/DSP/FFT.cpp
+  Source/DSP/Convolver.cpp
+  Source/DSP/AudioFile.cpp
+  Source/Cabinet/CabIRSynth.cpp
+  Source/Cabinet/Cabinet.cpp
 )
 target_include_directories(TwoonemoonCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 target_compile_options(TwoonemoonCore PRIVATE -Wall -Wextra -Wno-unused-parameter)

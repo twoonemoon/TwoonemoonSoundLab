@@ -3,6 +3,7 @@
 
 #include "../DSP/DspCommon.h"
 #include "../Amps/Amp.h"
+#include "../Cabinet/Cabinet.h"
 #include "../Effects/Compressor.h"
 #include "../Effects/Drives.h"
 #include "../Effects/NoiseGate.h"
@@ -30,6 +31,7 @@ const ModuleMeta kModuleMeta[kNumModules] = {
   { ModuleId::Distortion, "dist", "Distortion", kDistOn },
   { ModuleId::Fuzz, "fuzz", "Fuzz", kFuzzOn },
   { ModuleId::Amp, "amp", "Amp", kAmpOn },
+  { ModuleId::Cabinet, "cab", "Cabinet", kCabOn },
 };
 
 constexpr float kSafetyCeiling = 4.0f; // +12 дБFS — аварийный потолок, не «звуковой» лимитер
@@ -51,7 +53,7 @@ ModuleId moduleIdForKey(const char* key) noexcept
 ChainOrder defaultChainOrder() noexcept
 {
   return { ModuleId::Gate, ModuleId::Compressor, ModuleId::Boost, ModuleId::Overdrive, ModuleId::Distortion,
-           ModuleId::Fuzz, ModuleId::Amp };
+           ModuleId::Fuzz, ModuleId::Amp, ModuleId::Cabinet };
 }
 
 bool isValidChainOrder(const ChainOrder& order) noexcept
@@ -77,6 +79,7 @@ Engine::Engine()
   mModules[static_cast<size_t>(ModuleId::Distortion)] = std::make_unique<Distortion>();
   mModules[static_cast<size_t>(ModuleId::Fuzz)] = std::make_unique<Fuzz>();
   mModules[static_cast<size_t>(ModuleId::Amp)] = std::make_unique<Amp>();
+  mModules[static_cast<size_t>(ModuleId::Cabinet)] = std::make_unique<Cabinet>();
 
   for (int i = 0; i < kNumParams; ++i) mParams[static_cast<size_t>(i)] = paramSpec(i).defaultValue;
   mOrderSlots[0] = mOrderSlots[1] = mActiveOrder = mPendingOrder = defaultChainOrder();

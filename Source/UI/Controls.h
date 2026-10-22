@@ -43,6 +43,7 @@ public:
   void SetAccent(const IColor& c) { mAccent = c; SetDirty(false); }
   void SetStyle(KnobStyle s) { mStyle = s; SetDirty(false); }
   void SetLabel(const char* l) { mLabel = l; SetDirty(false); }
+  void SetLabelColor(const IColor& c) { mLabelColor = c; SetDirty(false); }
 
 protected:
   IRECT GetKnobDragBounds() override { return mKnobRect; }
@@ -51,6 +52,7 @@ private:
   std::string mLabel;
   KnobStyle mStyle;
   IColor mAccent;
+  IColor mLabelColor = col::text2;
   bool mBipolar;
   IRECT mKnobRect, mLabelRect, mValueRect;
   bool mHover = false;

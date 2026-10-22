@@ -22,6 +22,10 @@ iplug_add_plugin(TwoonemoonSoundLab
     ${TSL_SRC}/UI/Theme.cpp
     ${TSL_SRC}/UI/Controls.cpp
     ${TSL_SRC}/UI/MainUI.cpp
+    ${TSL_SRC}/UI/AmpFaces.cpp
+    ${TSL_SRC}/UI/PagePlay.cpp
+    ${TSL_SRC}/UI/PageAmp.cpp
+    ${TSL_SRC}/UI/PageCab.cpp
     ${TSL_SRC}/Standalone/AppBootstrap.mm
   RESOURCES
     ${TSL_RES}/Fonts/Inter-Regular.ttf
