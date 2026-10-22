@@ -1,0 +1,9 @@
+/build/
+/dist/
+.DS_Store
+*.xcuserstate
+xcuserdata/
+.vscode/
+.idea/
+compile_commands.json
+/Tests/Renders/out/

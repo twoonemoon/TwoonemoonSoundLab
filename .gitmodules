@@ -1,0 +1,4 @@
+[submodule "ThirdParty/iPlug2"]
+	path = ThirdParty/iPlug2
+	url = https://github.com/iPlug2/iPlug2.git
+	ignore = untracked
