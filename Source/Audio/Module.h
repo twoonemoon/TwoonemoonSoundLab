@@ -32,6 +32,10 @@ enum class ModuleId : int
   EnvFilter,
   Delay,
   Reverb,
+  Wah,
+  Octave,
+  Pitch,
+  Harmonizer,
   Count
 };
 

@@ -86,7 +86,9 @@ PitchDetector::Result PitchDetector::estimate()
 
   // Ключевые максимумы между пересечениями нуля
   float globalMax = 0.f;
-  std::vector<int> peaks;
+  // Фиксированный массив — estimate() не аллоцирует и может вызываться из audio thread
+  int peaks[64];
+  int numPeaks = 0;
   int tau = 1;
   while (tau < mMaxLag && mNsdf[static_cast<size_t>(tau)] > 0.f) ++tau; // пропустить начальный положительный участок
   while (tau < mMaxLag)
@@ -99,17 +101,17 @@ PitchDetector::Result PitchDetector::estimate()
       if (mNsdf[static_cast<size_t>(tau)] > bestV) { bestV = mNsdf[static_cast<size_t>(tau)]; best = tau; }
       ++tau;
     }
-    if (best >= mMinLag)
+    if (best >= mMinLag && numPeaks < 64)
     {
-      peaks.push_back(best);
+      peaks[numPeaks++] = best;
       globalMax = std::max(globalMax, bestV);
     }
   }
-  if (peaks.empty() || globalMax < 0.3f) return res;
+  if (numPeaks == 0 || globalMax < 0.3f) return res;
   const float thr = 0.88f * globalMax;
-  int chosen = peaks.front();
-  for (int p : peaks)
-    if (mNsdf[static_cast<size_t>(p)] >= thr) { chosen = p; break; }
+  int chosen = peaks[0];
+  for (int i = 0; i < numPeaks; ++i)
+    if (mNsdf[static_cast<size_t>(peaks[i])] >= thr) { chosen = peaks[i]; break; }
 
   // Параболическая интерполяция
   const float y0 = mNsdf[static_cast<size_t>(chosen - 1)], y1 = mNsdf[static_cast<size_t>(chosen)], y2 = mNsdf[static_cast<size_t>(chosen + 1)];

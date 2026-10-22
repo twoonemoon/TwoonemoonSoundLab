@@ -55,6 +55,15 @@ inline constexpr const char* kTremShape[] = { "Sine", "Triangle", "Square" };
 inline constexpr const char* kRotarySpeed[] = { "Slow", "Fast", "Brake" };
 inline constexpr const char* kEnvMode[] = { "Low-pass", "Band-pass", "High-pass" };
 inline constexpr const char* kEnvDirection[] = { "Up", "Down" };
+inline constexpr const char* kWahMode[] = { "Manual", "Auto" };
+inline constexpr const char* kOctMode[] = { "Mono (analog)", "Poly" };
+inline constexpr const char* kPitchQuality[] = { "Live (short)", "Smooth (long)" };
+inline constexpr const char* kKey[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+inline constexpr const char* kScale[] = { "Major",         "Natural Minor",    "Harmonic Minor",   "Melodic Minor", "Dorian",
+                                          "Phrygian",      "Lydian",           "Mixolydian",       "Locrian",       "Major Pentatonic",
+                                          "Minor Pentatonic", "Blues",         "Chromatic" };
+inline constexpr const char* kHarmInterval[] = { "-Octave", "-7th", "-6th", "-5th", "-4th", "-3rd", "-2nd", "Unison",
+                                                 "+2nd",    "+3rd", "+4th", "+5th", "+6th", "+7th", "+Octave", "+10th" };
 } // namespace labels
 
 #define TSL_N(arr) static_cast<int>(sizeof(arr) / sizeof(arr[0]))
@@ -284,7 +293,54 @@ inline constexpr const char* kEnvDirection[] = { "Up", "Down" };
   X(EnvRelease, "env.release", "Env Filter Release", "Envelope Filter", Float, 20.0f, 1000.0f, 150.0f, 0.1f, Exp, Ms, nullptr, 0) \
   X(EnvDirection, "env.direction", "Env Filter Direction", "Envelope Filter", Enum, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, labels::kEnvDirection, TSL_N(labels::kEnvDirection)) \
   X(EnvMix, "env.mix", "Env Filter Mix", "Envelope Filter", Float, 0.0f, 100.0f, 100.0f, 0.1f, Linear, Percent, nullptr, 0) \
-  X(ParallelMix, "chain.parallelMix", "Parallel A/B Mix", "Chain", Float, 0.0f, 100.0f, 50.0f, 0.1f, Linear, Percent, nullptr, 0)
+  X(ParallelMix, "chain.parallelMix", "Parallel A/B Mix", "Chain", Float, 0.0f, 100.0f, 50.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(WahOn, "wah.on", "Wah On", "Wah", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(WahMode, "wah.mode", "Wah Mode", "Wah", Enum, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, labels::kWahMode, TSL_N(labels::kWahMode)) \
+  X(WahPosition, "wah.position", "Wah Position", "Wah", Float, 0.0f, 100.0f, 50.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(WahQ, "wah.q", "Wah Q", "Wah", Float, 1.0f, 15.0f, 6.0f, 0.01f, Exp, None, nullptr, 0) \
+  X(WahSensitivity, "wah.sensitivity", "Wah Sensitivity", "Wah", Float, 0.0f, 10.0f, 5.0f, 0.01f, Linear, None, nullptr, 0) \
+  X(WahMix, "wah.mix", "Wah Mix", "Wah", Float, 0.0f, 100.0f, 100.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(OctOn, "oct.on", "Octave On", "Octave", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(OctMode, "oct.mode", "Octave Mode", "Octave", Enum, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, labels::kOctMode, TSL_N(labels::kOctMode)) \
+  X(OctSub1, "oct.sub1", "Octave Sub 1", "Octave", Float, 0.0f, 100.0f, 70.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(OctSub2, "oct.sub2", "Octave Sub 2", "Octave", Float, 0.0f, 100.0f, 0.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(OctUp, "oct.up", "Octave Up", "Octave", Float, 0.0f, 100.0f, 0.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(OctDry, "oct.dry", "Octave Dry", "Octave", Float, 0.0f, 100.0f, 100.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(OctTone, "oct.tone", "Octave Tone", "Octave", Float, 200.0f, 5000.0f, 1200.0f, 1.0f, Exp, Hz, nullptr, 0) \
+  X(PitchOn, "pitch.on", "Pitch On", "Pitch", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(PitchSemitones, "pitch.semitones", "Pitch Semitones", "Pitch", Int, -24.0f, 24.0f, 12.0f, 1.0f, Linear, Semitones, nullptr, 0) \
+  X(PitchFine, "pitch.fine", "Pitch Fine", "Pitch", Float, -50.0f, 50.0f, 0.0f, 0.1f, Linear, Cents, nullptr, 0) \
+  X(PitchMix, "pitch.mix", "Pitch Mix", "Pitch", Float, 0.0f, 100.0f, 50.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(PitchQuality, "pitch.quality", "Pitch Quality", "Pitch", Enum, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, labels::kPitchQuality, TSL_N(labels::kPitchQuality)) \
+  X(HarmOn, "harm.on", "Harmonizer On", "Harmonizer", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(HarmKey, "harm.key", "Harmonizer Key", "Harmonizer", Enum, 0.0f, 11.0f, 9.0f, 1.0f, Linear, None, labels::kKey, TSL_N(labels::kKey)) \
+  X(HarmScale, "harm.scale", "Harmonizer Scale", "Harmonizer", Enum, 0.0f, 12.0f, 1.0f, 1.0f, Linear, None, labels::kScale, TSL_N(labels::kScale)) \
+  X(HarmDry, "harm.dry", "Harmonizer Dry", "Harmonizer", Float, 0.0f, 100.0f, 100.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(HarmVoices, "harm.voices", "Harmonizer Voices Level", "Harmonizer", Float, 0.0f, 100.0f, 70.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(HarmV1On, "harm.v1.on", "Harm Voice 1 On", "Harmonizer", Bool, 0.0f, 1.0f, 1.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(HarmV1Interval, "harm.v1.interval", "Harm Voice 1 Interval", "Harmonizer", Enum, 0.0f, 15.0f, 9.0f, 1.0f, Linear, None, labels::kHarmInterval, TSL_N(labels::kHarmInterval)) \
+  X(HarmV1Level, "harm.v1.level", "Harm Voice 1 Level", "Harmonizer", Float, 0.0f, 100.0f, 70.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(HarmV1Pan, "harm.v1.pan", "Harm Voice 1 Pan", "Harmonizer", Float, -100.0f, 100.0f, -40.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(HarmV1Delay, "harm.v1.delay", "Harm Voice 1 Delay", "Harmonizer", Float, 0.0f, 60.0f, 0.0f, 0.1f, Linear, Ms, nullptr, 0) \
+  X(HarmV1Detune, "harm.v1.detune", "Harm Voice 1 Detune", "Harmonizer", Float, -30.0f, 30.0f, 4.0f, 0.1f, Linear, Cents, nullptr, 0) \
+  X(HarmV2On, "harm.v2.on", "Harm Voice 2 On", "Harmonizer", Bool, 0.0f, 1.0f, 1.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(HarmV2Interval, "harm.v2.interval", "Harm Voice 2 Interval", "Harmonizer", Enum, 0.0f, 15.0f, 11.0f, 1.0f, Linear, None, labels::kHarmInterval, TSL_N(labels::kHarmInterval)) \
+  X(HarmV2Level, "harm.v2.level", "Harm Voice 2 Level", "Harmonizer", Float, 0.0f, 100.0f, 60.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(HarmV2Pan, "harm.v2.pan", "Harm Voice 2 Pan", "Harmonizer", Float, -100.0f, 100.0f, 40.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(HarmV2Delay, "harm.v2.delay", "Harm Voice 2 Delay", "Harmonizer", Float, 0.0f, 60.0f, 12.0f, 0.1f, Linear, Ms, nullptr, 0) \
+  X(HarmV2Detune, "harm.v2.detune", "Harm Voice 2 Detune", "Harmonizer", Float, -30.0f, 30.0f, -4.0f, 0.1f, Linear, Cents, nullptr, 0) \
+  X(HarmV3On, "harm.v3.on", "Harm Voice 3 On", "Harmonizer", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(HarmV3Interval, "harm.v3.interval", "Harm Voice 3 Interval", "Harmonizer", Enum, 0.0f, 15.0f, 0.0f, 1.0f, Linear, None, labels::kHarmInterval, TSL_N(labels::kHarmInterval)) \
+  X(HarmV3Level, "harm.v3.level", "Harm Voice 3 Level", "Harmonizer", Float, 0.0f, 100.0f, 50.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(HarmV3Pan, "harm.v3.pan", "Harm Voice 3 Pan", "Harmonizer", Float, -100.0f, 100.0f, 0.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(HarmV3Delay, "harm.v3.delay", "Harm Voice 3 Delay", "Harmonizer", Float, 0.0f, 60.0f, 0.0f, 0.1f, Linear, Ms, nullptr, 0) \
+  X(HarmV3Detune, "harm.v3.detune", "Harm Voice 3 Detune", "Harmonizer", Float, -30.0f, 30.0f, 0.0f, 0.1f, Linear, Cents, nullptr, 0) \
+  X(HarmV4On, "harm.v4.on", "Harm Voice 4 On", "Harmonizer", Bool, 0.0f, 1.0f, 0.0f, 1.0f, Linear, None, nullptr, 0) \
+  X(HarmV4Interval, "harm.v4.interval", "Harm Voice 4 Interval", "Harmonizer", Enum, 0.0f, 15.0f, 14.0f, 1.0f, Linear, None, labels::kHarmInterval, TSL_N(labels::kHarmInterval)) \
+  X(HarmV4Level, "harm.v4.level", "Harm Voice 4 Level", "Harmonizer", Float, 0.0f, 100.0f, 40.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(HarmV4Pan, "harm.v4.pan", "Harm Voice 4 Pan", "Harmonizer", Float, -100.0f, 100.0f, 0.0f, 0.1f, Linear, Percent, nullptr, 0) \
+  X(HarmV4Delay, "harm.v4.delay", "Harm Voice 4 Delay", "Harmonizer", Float, 0.0f, 60.0f, 25.0f, 0.1f, Linear, Ms, nullptr, 0) \
+  X(HarmV4Detune, "harm.v4.detune", "Harm Voice 4 Detune", "Harmonizer", Float, -30.0f, 30.0f, 0.0f, 0.1f, Linear, Cents, nullptr, 0)
 
 enum ParamId : int
 {

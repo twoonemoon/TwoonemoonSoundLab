@@ -35,6 +35,7 @@ add_library(TwoonemoonCore STATIC
   Source/Effects/Delay.cpp
   Source/Effects/Reverb.cpp
   Source/Effects/Modulation.cpp
+  Source/Effects/PitchFx.cpp
 )
 target_include_directories(TwoonemoonCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 target_compile_options(TwoonemoonCore PRIVATE -Wall -Wextra -Wno-unused-parameter)
