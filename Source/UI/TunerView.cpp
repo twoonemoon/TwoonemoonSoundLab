@@ -58,7 +58,7 @@ void TunerView::Draw(IGraphics& g)
 {
   const float a4 = static_cast<float>(mPlugin->GetParam(tsl::kTunerRef)->Value());
   const auto note = tsl::PitchDetector::noteFor(mFreq, a4);
-  mShownCents += (mCents - mShownCents) * 0.3f;
+  mShownCents += (mCents - mShownCents) * (uiFlags().reduceMotion ? 1.f : 0.3f);
   const bool inTune = mActive && std::fabs(mShownCents) < 2.f;
   const IColor indicator = !mActive ? col::text3 : (inTune ? col::ok : (std::fabs(mShownCents) < 10.f ? col::warn : col::accent));
 
@@ -100,7 +100,7 @@ void TunerView::Draw(IGraphics& g)
   g.PathClear();
   g.PathRoundRect(strobe, 6.f);
   g.PathFill(IColor(255, 11, 12, 15));
-  if (mActive) mStrobePhase += mShownCents * 0.08f;
+  if (mActive && !uiFlags().reduceMotion) mStrobePhase += mShownCents * 0.08f;
   g.PathClipRegion(strobe.GetPadded(-2.f));
   const float period = 18.f;
   const float off = std::fmod(mStrobePhase, period);

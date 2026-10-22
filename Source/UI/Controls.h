@@ -16,6 +16,22 @@ class LevelMeter;
 
 namespace tslui {
 
+/** Хуки параметрических контролов (задаются главным окном): контекстное меню, MIDI-состояние, подсказки. */
+struct ParamUIHooks
+{
+  std::function<void(IControl&, int param, const IRECT&)> openMenu; // правый клик
+  std::function<int(int param)> midiState;                          // 0 — нет, 1 — привязан, 2 — обучение
+  std::function<const char*(int param)> tooltip;                    // текст подсказки (рус.)
+};
+ParamUIHooks& paramHooks();
+
+/** Глобальные флаги интерфейса (UI thread). */
+struct UIFlags
+{
+  bool reduceMotion = false;
+};
+UIFlags& uiFlags();
+
 enum class KnobStyle
 {
   Steel,    // шлифованная сталь (по умолчанию)
@@ -40,6 +56,8 @@ public:
   void OnMouseOver(float x, float y, const IMouseMod& mod) override;
   void OnMouseOut() override;
   void OnResize() override;
+  void OnAttached() override;
+  bool IsDirty() override;
   void SetAccent(const IColor& c) { mAccent = c; SetDirty(false); }
   void SetStyle(KnobStyle s) { mStyle = s; SetDirty(false); }
   void SetLabel(const char* l) { mLabel = l; SetDirty(false); }
@@ -56,6 +74,8 @@ private:
   bool mBipolar;
   IRECT mKnobRect, mLabelRect, mValueRect;
   bool mHover = false;
+  int mMidiShown = 0;
+  float mPulse = 0.f;
 };
 
 /** Ножной переключатель/тумблер с LED. Привязывается к Bool-параметру. */
@@ -186,7 +206,7 @@ private:
 class IconButton : public IControl
 {
 public:
-  enum class Icon { Left, Right, Undo, Redo };
+  enum class Icon { Left, Right, Undo, Redo, Gear, Help };
   IconButton(const IRECT& bounds, Icon icon, std::function<void()> action, std::function<bool()> enabled = nullptr);
   void Draw(IGraphics& g) override;
   void OnMouseDown(float x, float y, const IMouseMod& mod) override;

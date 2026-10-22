@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Audio/Module.h"
+#include "Presets/UserSettings.h"
 #include "Controls.h"
 #include "Theme.h"
 
@@ -21,6 +22,8 @@ struct UIContext
   /** Перейти к редактору модуля (страница + выбор), задаётся MainUI/страницей эффектов. */
   std::function<void(tsl::ModuleId)> openModule;
   std::function<void(tsl::ModuleId)> selectFx;
+  tsl::UserSettings prefs;
+  std::function<void()> showOnboarding;
   /** Переключить страницу (−1 — страница пресетов). */
   std::function<void(int)> gotoPage;
   /** Слушатели изменения параметров (UI thread). */
@@ -56,6 +59,8 @@ struct UIContext
 void buildFxPage(UIContext& ctx, const char* page);
 void buildChainPage(UIContext& ctx, const char* page);
 void buildPresetsPage(UIContext& ctx, const char* page);
+void buildSettingsPage(UIContext& ctx, const char* page);
+void buildHelpPage(UIContext& ctx, const char* page);
 IColor moduleColor(tsl::ModuleId id);
 void buildEqPage(UIContext& ctx, const char* page);
 void buildPlayPage(UIContext& ctx, const char* page);

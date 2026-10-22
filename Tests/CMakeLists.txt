@@ -9,6 +9,7 @@ add_executable(tsl_tests
   Unit/TestFx.cpp
   Unit/TestPitchFx.cpp
   Unit/TestPresets.cpp
+  Unit/TestMidi.cpp
 )
 target_link_libraries(tsl_tests PRIVATE TwoonemoonCore)
 target_compile_options(tsl_tests PRIVATE -Wall -Wno-unused-parameter)

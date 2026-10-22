@@ -3,6 +3,13 @@
 #include "IPlug_include_in_plug_src.h"
 
 #include "Cabinet/Cabinet.h"
+#include "Presets/UserSettings.h"
+
+#if defined(APP_API)
+#include "IPlugSWELL.h"
+#include "resources/resource.h"
+extern HWND gHWND;
+#endif
 
 #if IPLUG_EDITOR
 #include "UI/MainUI.h"
@@ -47,7 +54,8 @@ TwoonemoonSoundLab::TwoonemoonSoundLab(const InstanceInfo& info)
 
 #if IPLUG_EDITOR
   mMakeGraphicsFunc = [&]() {
-    return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, 1.f);
+    // Масштаб интерфейса — из пользовательских настроек (50–250%)
+    return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, tsl::UserSettings::load().uiScale);
   };
   mLayoutFunc = [&](IGraphics* pGraphics) { tslui::buildMainUI(pGraphics, *this); };
 #endif
@@ -146,6 +154,23 @@ bool TwoonemoonSoundLab::SerializeState(IByteChunk& chunk) const
     if (cfg.onLaneB(static_cast<tsl::ModuleId>(i))) chunk.PutStr(tsl::moduleKey(static_cast<tsl::ModuleId>(i)));
   chunk.PutStr(mCurrentName.c_str());
   chunk.PutStr(mCurrentId.c_str());
+  // MIDI-привязки: параметр по ключу
+  int32_t nmap = 0;
+  for (int i = 0; i < tsl::MidiMap::kSlots; ++i)
+    if (mMidiMap.slot(i).cc >= 0) ++nmap;
+  chunk.Put(&nmap);
+  for (int i = 0; i < tsl::MidiMap::kSlots; ++i)
+  {
+    const auto m = mMidiMap.slot(i);
+    if (m.cc < 0) continue;
+    chunk.PutStr(tsl::paramSpec(m.param).key);
+    const int32_t cc = m.cc, ch = m.channel;
+    const float lo = m.lo, hi = m.hi;
+    chunk.Put(&cc);
+    chunk.Put(&ch);
+    chunk.Put(&lo);
+    chunk.Put(&hi);
+  }
   return true;
 }
 
@@ -237,6 +262,22 @@ int TwoonemoonSoundLab::UnserializeState(const IByteChunk& chunk, int pos)
     {
       mCurrentName = name.Get();
       mCurrentId = id.Get();
+    }
+    int32_t nmap = 0;
+    if (p >= 0 && (p = chunk.Get(&nmap, p)) >= 0 && nmap >= 0 && nmap <= tsl::MidiMap::kSlots)
+    {
+      mMidiMap.clear();
+      WDL_String key;
+      for (int i = 0; i < nmap && p >= 0; ++i)
+      {
+        int32_t cc = -1, ch = -1;
+        float lo = 0.f, hi = 1.f;
+        if ((p = chunk.GetStr(key, p)) < 0 || (p = chunk.Get(&cc, p)) < 0 || (p = chunk.Get(&ch, p)) < 0 || (p = chunk.Get(&lo, p)) < 0 ||
+            (p = chunk.Get(&hi, p)) < 0)
+          break;
+        const int id = tsl::paramIdForKey(key.Get());
+        if (id >= 0 && cc >= 0 && cc < 128) mMidiMap.assign(id, cc, ch, std::clamp(lo, 0.f, 1.f), std::clamp(hi, 0.f, 1.f));
+      }
     }
     // Восстановленное состояние считаем «сохранённым» для индикатора изменений
     for (int i = 0; i < tsl::kNumParams; ++i) mLoadedValues[static_cast<size_t>(i)] = static_cast<float>(GetParam(i)->Value());
@@ -351,6 +392,13 @@ void TwoonemoonSoundLab::OnRestoreState()
 }
 
 // ---------------------------------------------------------------------------
+
+void TwoonemoonSoundLab::openAudioSettings()
+{
+#if defined(APP_API)
+  if (gHWND) SendMessage(gHWND, WM_COMMAND, ID_PREFERENCES, 0);
+#endif
+}
 
 void TwoonemoonSoundLab::OnIdle()
 {
@@ -692,7 +740,12 @@ void TwoonemoonSoundLab::updateTailSize()
 
 void TwoonemoonSoundLab::ProcessMidiMsg(const IMidiMsg& msg)
 {
-  // MIDI Learn / педаль экспрессии — Milestone 7. Пока входящие сообщения принимаются и игнорируются.
-  (void)msg;
+  // MIDI Learn / педаль экспрессии: CC → параметр (без блокировок). Остальные сообщения игнорируются.
+  if (msg.StatusMsg() != IMidiMsg::kControlChange) return;
+  mMidiMap.handleCC(msg.Channel(), msg.mData1, msg.mData2, [this](int param, float norm) {
+    if (param < 0 || param >= tsl::kNumParams) return;
+    GetParam(param)->SetNormalized(norm);
+    SendParameterValueFromAPI(param, norm, true); // обновить UI (через очередь в главный поток)
+  });
 }
 #endif

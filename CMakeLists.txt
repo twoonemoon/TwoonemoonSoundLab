@@ -38,6 +38,7 @@ add_library(TwoonemoonCore STATIC
   Source/Effects/PitchFx.cpp
   Source/Presets/Preset.cpp
   Source/Presets/FactoryPresets.cpp
+  Source/Presets/UserSettings.cpp
 )
 target_include_directories(TwoonemoonCore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 # nlohmann/json (MIT) — заголовочная библиотека из состава iPlug2

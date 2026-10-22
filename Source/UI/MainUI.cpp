@@ -5,6 +5,7 @@
 #include "Controls.h"
 #include "Theme.h"
 #include "TwoonemoonSoundLab.h"
+#include "HelpContent.h"
 #include "TunerView.h"
 #include "UIContext.h"
 
@@ -24,10 +25,11 @@ constexpr float kH = PLUG_HEIGHT;
 constexpr float kHeaderH = 64.f;
 constexpr float kFooterH = 92.f;
 
-const char* const kPageGroups[] = { "page.play", "page.presets", "page.chain", "page.amp", "page.cab", "page.fx", "page.eq" };
+const char* const kPageGroups[] = { "page.play", "page.presets", "page.chain", "page.amp", "page.cab", "page.fx", "page.eq", "page.settings", "page.help" };
 const char* const kPageTitles[] = { "Игра", "Пресеты", "Цепочка", "Усилитель", "Кабинет", "Эффекты", "EQ" };
-constexpr int kNumPages = 7;
-enum Page { kPagePlay, kPagePresets, kPageChain, kPageAmp, kPageCab, kPageFx, kPageEq };
+constexpr int kNumTabs = 7;  // страницы во вкладках
+constexpr int kNumPages = 9; // + служебные (настройки, справка) — открываются иконками в шапке
+enum Page { kPagePlay, kPagePresets, kPageChain, kPageAmp, kPageCab, kPageFx, kPageEq, kPageSettings, kPageHelp };
 
 /** Масштабы интерфейса (векторная перерисовка, не растяжение bitmap). */
 constexpr float kScales[] = { 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 2.5f };
@@ -35,7 +37,7 @@ constexpr float kScales[] = { 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 2.5f };
 class ScaleButton : public ActionButton
 {
 public:
-  explicit ScaleButton(const IRECT& r) : ActionButton(r, "100%", nullptr, true) {}
+  ScaleButton(const IRECT& r, UIContext* ctx) : ActionButton(r, "100%", nullptr, true), mCtx(ctx) {}
   void OnMouseDown(float, float, const IMouseMod&) override
   {
     mMenu.Clear();
@@ -55,6 +57,8 @@ public:
     if (!pMenu) return;
     const int idx = pMenu->GetChosenItemIdx();
     if (idx < 0 || idx >= static_cast<int>(std::size(kScales))) return;
+    mCtx->prefs.uiScale = kScales[idx];
+    mCtx->prefs.save();
     GetUI()->Resize(static_cast<int>(kW), static_cast<int>(kH), kScales[idx]);
   }
   void Draw(IGraphics& g) override
@@ -67,6 +71,115 @@ public:
 
 private:
   IPopupMenu mMenu;
+  UIContext* mCtx;
+};
+
+/** Контекстное меню параметра: MIDI Learn, удаление привязки, точное значение, сброс. */
+class ParamContextMenu : public IControl
+{
+public:
+  ParamContextMenu(TwoonemoonSoundLab* plugin) : IControl(IRECT()), mPlugin(plugin) { mIgnoreMouse = true; }
+  void Draw(IGraphics&) override {}
+  void open(IControl& src, int param, const IRECT& r)
+  {
+    mSrc = &src;
+    mParam = param;
+    auto& mm = mPlugin->midiMap();
+    const auto m = mm.mappingFor(param);
+    mMenu.Clear();
+    mMenu.SetRootTitle(paramSpec(param).name);
+    mMenu.AddItem(mm.learnTarget() == param ? "Отменить MIDI Learn" : "MIDI Learn");
+    char buf[64];
+    if (m.cc >= 0) snprintf(buf, sizeof(buf), "Убрать MIDI-привязку (CC %d)", m.cc);
+    else snprintf(buf, sizeof(buf), "Убрать MIDI-привязку");
+    auto* rm = mMenu.AddItem(buf);
+    if (m.cc < 0) rm->SetEnabled(false);
+    mMenu.AddSeparator();
+    mMenu.AddItem("Ввести значение…");
+    mMenu.AddItem("Сбросить к значению по умолчанию");
+    GetUI()->CreatePopupMenu(*this, mMenu, r);
+  }
+  void OnPopupMenuSelection(IPopupMenu* pMenu, int) override
+  {
+    if (!pMenu || !mSrc || mParam < 0) return;
+    auto& mm = mPlugin->midiMap();
+    switch (pMenu->GetChosenItemIdx())
+    {
+      case 0: mm.startLearn(mm.learnTarget() == mParam ? -1 : mParam); break;
+      case 1: mm.removeForParam(mParam); break;
+      case 3: mSrc->PromptUserInput(mSrc->GetRECT().GetFromBottom(18.f)); break;
+      case 4: mSrc->SetValueToDefault(); mSrc->SetDirty(true); break;
+      default: break;
+    }
+  }
+
+private:
+  TwoonemoonSoundLab* mPlugin;
+  IControl* mSrc = nullptr;
+  int mParam = -1;
+  IPopupMenu mMenu;
+};
+
+constexpr const char* kOnboardingGroup = "overlay.onboarding";
+
+/** Карточка первого знакомства: шаг, текст, «Назад/Далее/Пропустить». */
+class OnboardingCard : public IControl
+{
+public:
+  OnboardingCard(const IRECT& r, UIContext* ctx) : IControl(r), mCtx(ctx) {}
+  void setStep(int s) { mStep = s; SetDirty(false); }
+  void Draw(IGraphics& g) override
+  {
+    const auto& steps = onboardingSteps();
+    drawHardwarePanel(g, mRECT, 18.f, col::bg2);
+    g.PathClear();
+    g.PathRoundRect(IRECT(mRECT.L, mRECT.T, mRECT.R, mRECT.T + 4.f), 2.f);
+    g.PathFill(col::accent);
+    const auto& st = steps[static_cast<size_t>(mStep)];
+    const IRECT in = mRECT.GetPadded(-26.f);
+    g.DrawText(txt(20.f, col::text, font::semibold, EAlign::Near), st.title, in.GetFromTop(30.f));
+    g.DrawMultiLineText(txt(13.f, col::text2, font::regular, EAlign::Near, EVAlign::Top), st.body, IRECT(in.L, in.T + 42.f, in.R, in.B - 50.f));
+    // точки прогресса
+    for (size_t i = 0; i < steps.size(); ++i)
+      g.FillCircle(static_cast<int>(i) == mStep ? col::accent : col::bg3, in.L + 6.f + i * 16.f, in.B - 16.f, 4.f);
+    mBack = IRECT(in.R - 300.f, in.B - 32.f, in.R - 210.f, in.B);
+    mNext = IRECT(in.R - 110.f, in.B - 32.f, in.R, in.B);
+    mSkip = IRECT(in.R - 200.f, in.B - 32.f, in.R - 120.f, in.B);
+    auto btn = [&](const IRECT& r, const char* l, bool hl) {
+      g.PathClear();
+      g.PathRoundRect(r, r.H() * 0.5f);
+      g.PathFill(hl ? IColor(70, 196, 92, 166) : col::bg3);
+      g.DrawText(txt(12.f, col::text, font::medium), l, r);
+    };
+    const bool last = mStep + 1 >= static_cast<int>(steps.size());
+    if (mStep > 0) btn(mBack, "Назад", false);
+    if (!last) btn(mSkip, "Пропустить", false);
+    btn(mNext, last ? "Начать" : "Далее", true);
+  }
+  void OnMouseDown(float x, float y, const IMouseMod&) override
+  {
+    const int n = static_cast<int>(onboardingSteps().size());
+    if (mNext.Contains(x, y))
+    {
+      if (mStep + 1 >= n) finish();
+      else mStep++;
+    }
+    else if (mBack.Contains(x, y) && mStep > 0) mStep--;
+    else if (mSkip.Contains(x, y)) finish();
+    SetDirty(false);
+  }
+
+private:
+  void finish()
+  {
+    mCtx->prefs.onboardingDone = true;
+    mCtx->prefs.save();
+    mCtx->g->ForControlInGroup(kOnboardingGroup, [](IControl* c) { c->Hide(true); });
+    mCtx->g->SetAllControlsDirty();
+  }
+  UIContext* mCtx;
+  int mStep = 0;
+  IRECT mBack, mNext, mSkip;
 };
 
 /** Краткий обзор цепочки в нижней панели: перерисовывается при изменении включённых модулей/порядка. */
@@ -149,7 +262,6 @@ void showPage(UIContext& ctx, int page)
 void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
 {
   g->EnableMouseOver(true);
-  g->EnableTooltips(true);
   loadFonts(g);
   g->AttachPopupMenuControl(txt(13.f, col::text, font::medium));
   g->SetLayoutOnResize(false);
@@ -158,6 +270,16 @@ void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
   UIContext& ctx = *ctxPtr;
   ctx.g = g;
   ctx.plugin = &plugin;
+  ctx.prefs = UserSettings::load();
+  g->EnableTooltips(ctx.prefs.tooltips);
+  uiFlags().reduceMotion = ctx.prefs.reduceMotion;
+  // Хуки параметрических контролов
+  paramHooks().midiState = [&plugin](int param) {
+    auto& mm = plugin.midiMap();
+    if (mm.learnTarget() == param) return 2;
+    return mm.mappingFor(param).cc >= 0 ? 1 : 0;
+  };
+  paramHooks().tooltip = [](int param) { return paramTooltip(paramSpec(param).key); };
   plugin.setUIParamListener([ctxPtr](int idx) { ctxPtr->notify(idx); });
 
   const IRECT b = g->GetBounds();
@@ -176,16 +298,21 @@ void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
     gr.FillRect(col::hairline, IRECT(r.L, r.B - 1.f, r.R, r.B));
   }));
 
-  std::vector<std::string> tabs(kPageTitles, kPageTitles + kNumPages);
-  const float tabW = kNumPages * 94.f;
-  auto* tabBar = new TabBar(IRECT(575.f - tabW * 0.5f, header.MH() - 19.f, 575.f + tabW * 0.5f, header.MH() + 19.f), tabs,
+  std::vector<std::string> tabs(kPageTitles, kPageTitles + kNumTabs);
+  auto* tabBar = new TabBar(IRECT(228.f, header.MH() - 19.f, 228.f + kNumTabs * 87.f, header.MH() + 19.f), tabs,
                             [ctxPtr](int page) { showPage(*ctxPtr, page); });
   g->AttachControl(tabBar);
 
   const float hy = header.MH();
   g->AttachControl(new ToggleChip(IRECT(kW - 116.f, hy - 14.f, kW - 20.f, hy + 14.f), kBypass, "Bypass", col::hot));
   g->AttachControl(new ActionButton(IRECT(kW - 212.f, hy - 14.f, kW - 126.f, hy + 14.f), "Тюнер", [g]() { setTunerVisible(g, true); }));
-  g->AttachControl(new ScaleButton(IRECT(kW - 278.f, hy - 14.f, kW - 222.f, hy + 14.f)));
+  g->AttachControl(new ScaleButton(IRECT(kW - 278.f, hy - 14.f, kW - 222.f, hy + 14.f), &ctx));
+  g->AttachControl(new IconButton(IRECT(kW - 318.f, hy - 14.f, kW - 290.f, hy + 14.f), IconButton::Icon::Help, [ctxPtr]() {
+    if (ctxPtr->gotoPage) ctxPtr->gotoPage(kPageHelp);
+  }))->SetTooltip("Справка");
+  g->AttachControl(new IconButton(IRECT(kW - 352.f, hy - 14.f, kW - 324.f, hy + 14.f), IconButton::Icon::Gear, [ctxPtr]() {
+    if (ctxPtr->gotoPage) ctxPtr->gotoPage(kPageSettings);
+  }))->SetTooltip("Настройки");
 
   // ---------------------------------------------------------------- Нижняя панель
   const IRECT footer = b.GetFromBottom(kFooterH);
@@ -214,6 +341,8 @@ void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
   buildCabPage(ctx, kPageGroups[kPageCab]);
   buildFxPage(ctx, kPageGroups[kPageFx]);
   buildEqPage(ctx, kPageGroups[kPageEq]);
+  buildSettingsPage(ctx, kPageGroups[kPageSettings]);
+  buildHelpPage(ctx, kPageGroups[kPageHelp]);
 
   // ---------------------------------------------------------------- Оверлей тюнера (поверх всего)
   {
@@ -246,9 +375,26 @@ void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
   };
   ctx.gotoPage = [ctxPtr, tabBar](int page) {
     if (page < 0) page = kPagePresets;
-    tabBar->SetSelected(page);
+    tabBar->SetSelected(page < kNumTabs ? page : -1);
     showPage(*ctxPtr, page);
   };
+  // Контекстное меню параметров (правый клик по ручке)
+  auto* paramMenu = new ParamContextMenu(&plugin);
+  g->AttachControl(paramMenu);
+  paramHooks().openMenu = [paramMenu](IControl& src, int param, const IRECT& r) { paramMenu->open(src, param, r); };
+  // Первое знакомство
+  {
+    g->AttachControl(new OverlayBlocker(b, nullptr), kNoTag, kOnboardingGroup);
+    auto* card = new OnboardingCard(b.GetCentredInside(560.f, 250.f), &ctx);
+    g->AttachControl(card, kNoTag, kOnboardingGroup);
+    ctx.showOnboarding = [g, card]() {
+      card->setStep(0);
+      g->ForControlInGroup(kOnboardingGroup, [](IControl* c) { c->Hide(false); });
+      g->SetAllControlsDirty();
+    };
+    const bool show = (!ctx.prefs.onboardingDone && getenv("TSL_START_PAGE") == nullptr) || getenv("TSL_SHOW_ONBOARDING") != nullptr;
+    g->ForControlInGroup(kOnboardingGroup, [show](IControl* c) { c->Hide(!show); });
+  }
   // Горячие клавиши
   g->SetKeyHandlerFunc([ctxPtr, g](const IKeyPress& key, bool isUp) {
     if (isUp) return false;
@@ -268,7 +414,7 @@ void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
     if (key.VK == kVK_ESCAPE) { setTunerVisible(g, false); return true; }
     return false;
   });
-  tabBar->SetSelected(startPage);
+  tabBar->SetSelected(startPage < kNumTabs ? startPage : -1);
   showPage(ctx, startPage);
 }
 

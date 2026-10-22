@@ -43,6 +43,18 @@ IColor mix(const IColor& a, const IColor& b, float t)
 
 } // namespace
 
+UIFlags& uiFlags()
+{
+  static UIFlags flags;
+  return flags;
+}
+
+ParamUIHooks& paramHooks()
+{
+  static ParamUIHooks hooks;
+  return hooks;
+}
+
 // ============================================================================
 // Knob
 
@@ -143,6 +155,25 @@ void Knob::Draw(IGraphics& g)
   // Точка-индикатор на треке
   g.FillCircle(mAccent, cx + c * arcR, cy + s * arcR, arcW * 0.9f);
 
+  // MIDI: обучение — пульсирующее кольцо; привязка — маленькая метка
+  mMidiShown = (paramHooks().midiState && GetParamIdx() >= 0) ? paramHooks().midiState(GetParamIdx()) : 0;
+  if (mMidiShown == 2)
+  {
+    mPulse += 0.08f;
+    const int a = static_cast<int>(110 + 100 * std::sin(mPulse));
+    g.PathClear();
+    g.PathCircle(cx, cy, R + 1.f);
+    g.PathStroke(IColor(a, 227, 168, 87), 2.f);
+  }
+  else if (mMidiShown == 1)
+  {
+    const IRECT badge(mKnobRect.R - 16.f, mKnobRect.T, mKnobRect.R, mKnobRect.T + 12.f);
+    g.PathClear();
+    g.PathRoundRect(badge, 4.f);
+    g.PathFill(IColor(220, 227, 168, 87));
+    g.DrawText(txt(8.f, IColor(255, 30, 24, 16), font::bold), "M", badge);
+  }
+
   // Подпись / значение
   if (mMouseDown || mHover)
   {
@@ -155,12 +186,33 @@ void Knob::Draw(IGraphics& g)
 
 void Knob::OnMouseDown(float x, float y, const IMouseMod& mod)
 {
-  if (mod.C || mod.R) // Cmd+клик / правый клик — точное значение
+  if (mod.R && paramHooks().openMenu && GetParamIdx() >= 0)
+  {
+    paramHooks().openMenu(*this, GetParamIdx(), mKnobRect);
+    return;
+  }
+  if (mod.C || mod.R) // Cmd+клик — точное значение
   {
     PromptUserInput(mValueRect.GetPadded(4.f, 0.f, 4.f, 2.f));
     return;
   }
   IKnobControlBase::OnMouseDown(x, y, mod);
+}
+
+void Knob::OnAttached()
+{
+  if (paramHooks().tooltip && GetParamIdx() >= 0)
+    if (const char* t = paramHooks().tooltip(GetParamIdx())) SetTooltip(t);
+}
+
+bool Knob::IsDirty()
+{
+  if (paramHooks().midiState && GetParamIdx() >= 0)
+  {
+    const int st = paramHooks().midiState(GetParamIdx());
+    if (st != mMidiShown || st == 2) return true;
+  }
+  return IKnobControlBase::IsDirty();
 }
 
 void Knob::OnMouseDblClick(float, float, const IMouseMod&)
@@ -484,11 +536,13 @@ void TabBar::Draw(IGraphics& g)
   const IRECT inner = mRECT.GetPadded(-4.f);
   const float w = inner.W() / static_cast<float>(mTabs.size());
   // Плавное перемещение выделения
-  const float target = static_cast<float>(mSelected);
-  mAnimPos += (target - mAnimPos) * 0.35f;
+  const float target = static_cast<float>(std::max(mSelected, 0));
+  mAnimPos += (target - mAnimPos) * (uiFlags().reduceMotion ? 1.f : 0.35f);
   if (std::fabs(target - mAnimPos) < 0.01f) mAnimPos = target;
   else SetDirty(false);
   const IRECT sel(inner.L + w * mAnimPos, inner.T, inner.L + w * (mAnimPos + 1.f), inner.B);
+  if (mSelected >= 0)
+  {
   g.PathClear();
   g.PathRoundRect(sel, sel.H() * 0.5f);
   g.PathFill(IPattern::CreateLinearGradient(sel.L, sel.T, sel.L, sel.B, { { IColor(70, 255, 255, 255), 0.f }, { IColor(26, 255, 255, 255), 1.f } }));
@@ -497,6 +551,7 @@ void TabBar::Draw(IGraphics& g)
   g.PathStroke(IColor(60, 255, 255, 255), 1.f);
   // Акцентная точка под активной вкладкой
   g.FillCircle(col::accent, sel.MW(), sel.B - 4.f, 1.6f);
+  }
 
   for (size_t i = 0; i < mTabs.size(); ++i)
   {
@@ -532,7 +587,8 @@ void TabBar::OnMouseOut()
 
 void TabBar::SetSelected(int i)
 {
-  mSelected = std::clamp(i, 0, static_cast<int>(mTabs.size()) - 1);
+  // −1 — ни одна вкладка не выбрана (открыта служебная страница: настройки/справка)
+  mSelected = i < 0 ? -1 : std::min(i, static_cast<int>(mTabs.size()) - 1);
   SetDirty(false);
 }
 
@@ -637,6 +693,25 @@ void IconButton::Draw(IGraphics& g)
       g.PathLineTo(cx + s * 0.5f, cy);
       g.PathLineTo(cx - s * 0.5f, cy + s);
       g.PathStroke(c, 1.8f, o);
+      break;
+    case Icon::Gear:
+    {
+      const float R = s * 1.25f;
+      for (int t = 0; t < 8; ++t)
+      {
+        const float a = t * 0.785398f;
+        g.DrawLine(c, cx + std::cos(a) * R * 0.75f, cy + std::sin(a) * R * 0.75f, cx + std::cos(a) * R * 1.2f, cy + std::sin(a) * R * 1.2f, nullptr, 2.2f);
+      }
+      g.PathClear();
+      g.PathCircle(cx, cy, R * 0.8f);
+      g.PathStroke(c, 1.8f, o);
+      g.PathClear();
+      g.PathCircle(cx, cy, R * 0.32f);
+      g.PathStroke(c, 1.5f, o);
+      break;
+    }
+    case Icon::Help:
+      g.DrawText(txt(mRECT.H() * 0.5f, c, font::semibold), "?", mRECT);
       break;
     case Icon::Undo:
     case Icon::Redo:

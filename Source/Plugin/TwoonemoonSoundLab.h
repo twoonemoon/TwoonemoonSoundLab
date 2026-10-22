@@ -5,6 +5,7 @@
 #include "IPlug_include_in_plug_hdr.h"
 
 #include "Audio/Engine.h"
+#include "Audio/MidiMap.h"
 #include "Audio/Params.h"
 #include "Presets/Preset.h"
 
@@ -57,6 +58,14 @@ public:
   /** Соседний пресет в общем списке (заводские + пользовательские), dir = ±1. */
   void stepPreset(int dir);
   std::vector<const tsl::Preset*> allPresets();
+
+  /** Standalone-приложение (а не плагин в DAW). */
+  bool isStandalone() const { return GetAPI() == iplug::kAPIAPP; }
+  /** Открыть диалог аудиоустройства (только standalone). */
+  void openAudioSettings();
+
+  // MIDI Learn / экспрессия
+  tsl::MidiMap& midiMap() { return mMidiMap; }
 
   // A/B
   int abSlot() const { return mABActive; }
@@ -121,5 +130,6 @@ private:
   int mUndoPos = -1;
   bool mApplyingHistory = false;
   std::unique_ptr<tsl::Preset> mQueued;
+  tsl::MidiMap mMidiMap;
   bool mQueuedFade = true;
 };
