@@ -43,6 +43,7 @@ TwoonemoonSoundLab::TwoonemoonSoundLab(const InstanceInfo& info)
 : iplug::Plugin(info, MakeConfig(tsl::kNumParams, 0))
 {
   initParams();
+  for (int i = 0; i < tsl::kNumParams; ++i) mLoadedValues[static_cast<size_t>(i)] = tsl::paramSpec(i).defaultValue;
 
 #if IPLUG_EDITOR
   mMakeGraphicsFunc = [&]() {
@@ -98,6 +99,7 @@ void TwoonemoonSoundLab::setChainConfig(const tsl::ChainConfig& cfg)
   mEngine.setChainConfig(cfg);
   mStateSerial.fetch_add(1);
   DirtyParametersFromUI();
+  pushUndo();
 }
 
 void TwoonemoonSoundLab::setChainOrder(const tsl::ChainOrder& order)
@@ -142,6 +144,8 @@ bool TwoonemoonSoundLab::SerializeState(IByteChunk& chunk) const
   chunk.Put(&nb);
   for (int i = 0; i < tsl::kNumModules; ++i)
     if (cfg.onLaneB(static_cast<tsl::ModuleId>(i))) chunk.PutStr(tsl::moduleKey(static_cast<tsl::ModuleId>(i)));
+  chunk.PutStr(mCurrentName.c_str());
+  chunk.PutStr(mCurrentId.c_str());
   return true;
 }
 
@@ -226,6 +230,17 @@ int TwoonemoonSoundLab::UnserializeState(const IByteChunk& chunk, int pos)
     }
     mEngine.setChainConfig(cfg);
   }
+  {
+    WDL_String name, id;
+    if (p >= 0 && (p = chunk.GetStr(name, p)) >= 0 && (p = chunk.GetStr(id, p)) >= 0)
+    {
+      mCurrentName = name.Get();
+      mCurrentId = id.Get();
+    }
+    // Восстановленное состояние считаем «сохранённым» для индикатора изменений
+    for (int i = 0; i < tsl::kNumParams; ++i) mLoadedValues[static_cast<size_t>(i)] = static_cast<float>(GetParam(i)->Value());
+    mLoadedChain = mEngine.chainConfig();
+  }
   mStateSerial.fetch_add(1);
   return p < 0 ? chunk.Size() : p;
 }
@@ -255,7 +270,257 @@ void TwoonemoonSoundLab::OnRestoreState()
 
 // ---------------------------------------------------------------------------
 
-void TwoonemoonSoundLab::OnIdle() {}
+void TwoonemoonSoundLab::OnIdle()
+{
+  const int st = mPresetState.load(std::memory_order_acquire);
+  if (st == kPresetApplied)
+  {
+    finishPresetLoad();
+  }
+  else if (st == kPresetRequested || st == kPresetFading)
+  {
+    // Резерв: если аудиопоток не идёт (устройство остановлено, хост не вызывает обработку),
+    // применяем пресет прямо здесь.
+    const auto waited = std::chrono::steady_clock::now() - mRequestTime;
+    if (mEngine.processedBlocks() == mRequestBlocks && waited > std::chrono::milliseconds(150))
+    {
+      applyNow(mPendingValues, mPendingChain);
+      mPresetState.store(kPresetApplied, std::memory_order_release);
+      finishPresetLoad();
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Пресеты
+
+tsl::PresetLibrary& TwoonemoonSoundLab::library()
+{
+  if (!mLibrary) mLibrary = std::make_unique<tsl::PresetLibrary>();
+  return *mLibrary;
+}
+
+std::vector<const tsl::Preset*> TwoonemoonSoundLab::allPresets()
+{
+  std::vector<const tsl::Preset*> v;
+  for (const auto& p : tsl::factoryPresets()) v.push_back(&p);
+  for (const auto& p : library().userPresets()) v.push_back(&p);
+  return v;
+}
+
+tsl::Preset TwoonemoonSoundLab::snapshot() const
+{
+  tsl::ParamValues v{};
+  for (int i = 0; i < tsl::kNumParams; ++i) v[static_cast<size_t>(i)] = static_cast<float>(GetParam(i)->Value());
+  tsl::Preset p = tsl::makePresetFromState(v, mEngine.chainConfig(), mUserIR[0], mUserIR[1]);
+  p.name = mCurrentName;
+  return p;
+}
+
+namespace {
+bool isGlobalParam(int i)
+{
+  switch (i)
+  {
+    case tsl::kInputTrim:
+    case tsl::kOutputTrim:
+    case tsl::kBypass:
+    case tsl::kInputMode:
+    case tsl::kTunerMute:
+    case tsl::kTunerRef:
+    case tsl::kTempo:
+    case tsl::kHostTempo:
+    case tsl::kOversampling: return true;
+    default: return false;
+  }
+}
+} // namespace
+
+bool TwoonemoonSoundLab::presetModified() const
+{
+  for (int i = 0; i < tsl::kNumParams; ++i)
+  {
+    if (isGlobalParam(i)) continue;
+    if (std::fabs(static_cast<float>(GetParam(i)->Value()) - mLoadedValues[static_cast<size_t>(i)]) > 1e-4f) return true;
+  }
+  return !(mEngine.chainConfig() == mLoadedChain);
+}
+
+void TwoonemoonSoundLab::markSaved(const tsl::Preset& p)
+{
+  mCurrentName = p.name;
+  mCurrentId = p.id();
+  for (int i = 0; i < tsl::kNumParams; ++i) mLoadedValues[static_cast<size_t>(i)] = static_cast<float>(GetParam(i)->Value());
+  mLoadedChain = mEngine.chainConfig();
+  if (mUIParamListener) mUIParamListener(-2);
+}
+
+void TwoonemoonSoundLab::loadPreset(const tsl::Preset& p, bool withFade)
+{
+  if (mPresetState.load(std::memory_order_acquire) != kPresetIdle)
+  {
+    // Идёт переход: буфер ожидания принадлежит audio thread — ставим запрос в очередь
+    mQueued = std::make_unique<tsl::Preset>(p);
+    mQueuedFade = withFade;
+    return;
+  }
+  tsl::ParamValues v = tsl::resolvePresetParams(p);
+  // Глобальные параметры (Input/Output, Bypass, темп, качество) пресет не меняет
+  for (int i = 0; i < tsl::kNumParams; ++i)
+    if (isGlobalParam(i)) v[static_cast<size_t>(i)] = static_cast<float>(GetParam(i)->Value());
+  const tsl::ChainConfig chain = p.hasChain ? p.chain : tsl::ChainConfig{};
+  mCurrentName = p.name;
+  mCurrentId = p.id();
+  mLoadedValues = v;
+  mLoadedChain = chain;
+  mPendingIR[0] = p.irA;
+  mPendingIR[1] = p.irB;
+  if (!p.id().empty() && mLibrary) mLibrary->pushRecent(p.id());
+  else library().pushRecent(p.id());
+
+  if (!withFade)
+  {
+    // Без затухания (undo/redo): параметры сглаживаются модулями
+    applyNow(v, chain);
+    mPresetState.store(kPresetApplied, std::memory_order_release);
+    finishPresetLoad();
+    return;
+  }
+  mPendingValues = v;
+  mPendingChain = chain;
+  mRequestBlocks = mEngine.processedBlocks();
+  mRequestTime = std::chrono::steady_clock::now();
+  mPresetState.store(kPresetRequested, std::memory_order_release);
+}
+
+void TwoonemoonSoundLab::applyNow(const tsl::ParamValues& v, const tsl::ChainConfig& chain)
+{
+  for (int i = 0; i < tsl::kNumParams; ++i) GetParam(i)->Set(v[static_cast<size_t>(i)]);
+  mEngine.setChainConfig(chain);
+}
+
+void TwoonemoonSoundLab::finishPresetLoad()
+{
+  for (int s = 0; s < 2; ++s)
+    if (mPendingIR[s] != mUserIR[s]) loadUserIR(s, mPendingIR[s]);
+  mStateSerial.fetch_add(1);
+  SendCurrentParamValuesFromDelegate();
+  InformHostOfPresetChange();
+  DirtyParametersFromUI();
+  mPresetState.store(kPresetIdle, std::memory_order_release);
+  if (!mApplyingHistory) pushUndo();
+  if (mUIParamListener) mUIParamListener(-2);
+  if (mQueued)
+  {
+    auto q = std::move(mQueued);
+    loadPreset(*q, mQueuedFade);
+  }
+}
+
+void TwoonemoonSoundLab::handlePresetAudio()
+{
+  const int st = mPresetState.load(std::memory_order_acquire);
+  if (st == kPresetRequested)
+  {
+    mEngine.beginTransitionFade();
+    mPresetState.store(kPresetFading, std::memory_order_release);
+  }
+  else if (st == kPresetFading && mEngine.transitionSilent())
+  {
+    // Тишина: подменяем все параметры и граф, сбрасываем хвосты, затем нарастание
+    for (int i = 0; i < tsl::kNumParams; ++i) GetParam(i)->Set(mPendingValues[static_cast<size_t>(i)]);
+    mEngine.setChainConfig(mPendingChain);
+    mEngine.reset();
+    mEngine.endTransitionFade();
+    mPresetState.store(kPresetApplied, std::memory_order_release);
+  }
+}
+
+void TwoonemoonSoundLab::stepPreset(int dir)
+{
+  const auto all = allPresets();
+  if (all.empty()) return;
+  int idx = -1;
+  for (size_t i = 0; i < all.size(); ++i)
+    if (all[i]->id() == mCurrentId) idx = static_cast<int>(i);
+  idx = idx < 0 ? 0 : (idx + dir + static_cast<int>(all.size())) % static_cast<int>(all.size());
+  loadPreset(*all[static_cast<size_t>(idx)]);
+}
+
+void TwoonemoonSoundLab::switchAB()
+{
+  mAB[mABActive] = snapshot();
+  mABValid[mABActive] = true;
+  mABActive ^= 1;
+  if (mABValid[mABActive])
+  {
+    const std::string keepName = mCurrentName, keepId = mCurrentId;
+    loadPreset(mAB[mABActive]);
+    mCurrentName = keepName;
+    mCurrentId = keepId;
+  }
+  else
+  {
+    mAB[mABActive] = mAB[mABActive ^ 1];
+    mABValid[mABActive] = true;
+    if (mUIParamListener) mUIParamListener(-2);
+  }
+}
+
+void TwoonemoonSoundLab::copyToOtherAB()
+{
+  mAB[mABActive ^ 1] = snapshot();
+  mABValid[mABActive ^ 1] = true;
+  if (mUIParamListener) mUIParamListener(-2);
+}
+
+void TwoonemoonSoundLab::pushUndo()
+{
+  tsl::Preset s = snapshot();
+  if (mUndoPos >= 0 && mUndoPos < static_cast<int>(mUndo.size()))
+  {
+    const auto& cur = mUndo[static_cast<size_t>(mUndoPos)];
+    if (cur.params == s.params && cur.chain == s.chain) return; // ничего не изменилось
+  }
+  mUndo.resize(static_cast<size_t>(mUndoPos + 1));
+  mUndo.push_back(std::move(s));
+  if (mUndo.size() > 100) mUndo.erase(mUndo.begin());
+  mUndoPos = static_cast<int>(mUndo.size()) - 1;
+}
+
+bool TwoonemoonSoundLab::undo()
+{
+  if (!canUndo()) return false;
+  --mUndoPos;
+  mApplyingHistory = true;
+  const std::string name = mCurrentName, id = mCurrentId;
+  const tsl::ParamValues loaded = mLoadedValues;
+  const tsl::ChainConfig loadedChain = mLoadedChain;
+  loadPreset(mUndo[static_cast<size_t>(mUndoPos)], false);
+  mCurrentName = name; mCurrentId = id; mLoadedValues = loaded; mLoadedChain = loadedChain;
+  mApplyingHistory = false;
+  return true;
+}
+
+bool TwoonemoonSoundLab::redo()
+{
+  if (!canRedo()) return false;
+  ++mUndoPos;
+  mApplyingHistory = true;
+  const std::string name = mCurrentName, id = mCurrentId;
+  const tsl::ParamValues loaded = mLoadedValues;
+  const tsl::ChainConfig loadedChain = mLoadedChain;
+  loadPreset(mUndo[static_cast<size_t>(mUndoPos)], false);
+  mCurrentName = name; mCurrentId = id; mLoadedValues = loaded; mLoadedChain = loadedChain;
+  mApplyingHistory = false;
+  return true;
+}
+
+void TwoonemoonSoundLab::EndInformHostOfParamChangeFromUI(int paramIdx)
+{
+  iplug::Plugin::EndInformHostOfParamChangeFromUI(paramIdx);
+  pushUndo();
+}
 
 #if IPLUG_DSP
 void TwoonemoonSoundLab::OnReset()
@@ -289,6 +554,7 @@ void TwoonemoonSoundLab::ProcessBlock(sample** inputs, sample** outputs, int nFr
     return;
   }
 
+  handlePresetAudio();
   for (int i = 0; i < tsl::kNumParams; ++i) mEngine.setParam(i, static_cast<float>(GetParam(i)->Value()));
 
   tsl::TransportInfo t;

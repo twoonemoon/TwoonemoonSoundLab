@@ -146,6 +146,8 @@ void Engine::prepare(double sampleRate, int maxBlockSize)
   mOutGain.prepare(sr, 0.02f);
   mBypassMix.prepare(sr, 0.015f);
   mTunerMute.prepare(sr, 0.015f);
+  mTransition.prepare(sr, 0.015f);
+  mTransition.snap(1.f);
   mOrderFade.prepare(sr, 0.012f);
   mInGain.snap(dbToGain(mParams[kInputTrim]));
   mOutGain.snap(dbToGain(mParams[kOutputTrim]));
@@ -307,6 +309,7 @@ void Engine::process(const float* const* in, int nIn, float** out, int nOut, int
     }
   }
 
+  mBlocks.fetch_add(1, std::memory_order_relaxed);
   int offset = 0;
   while (offset < numFrames)
   {
@@ -460,7 +463,7 @@ void Engine::processChunk(const float* const* in, int nIn, float** out, int nOut
   for (int i = 0; i < n; ++i)
   {
     const float w = mBypassMix.next();
-    const float mute = 1.0f - mTunerMute.next();
+    const float mute = (1.0f - mTunerMute.next()) * mTransition.next();
     const float l = (dL[i] + w * (L[i] - dL[i])) * mute;
     const float r = stereo ? (dR[i] + w * (R[i] - dR[i])) * mute : l;
     if (oR)

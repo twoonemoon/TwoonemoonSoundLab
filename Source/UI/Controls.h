@@ -182,6 +182,25 @@ private:
   bool mGlass, mHover = false, mHighlight = false;
 };
 
+/** Кнопка-иконка (векторные значки: шевроны, отмена/повтор). */
+class IconButton : public IControl
+{
+public:
+  enum class Icon { Left, Right, Undo, Redo };
+  IconButton(const IRECT& bounds, Icon icon, std::function<void()> action, std::function<bool()> enabled = nullptr);
+  void Draw(IGraphics& g) override;
+  void OnMouseDown(float x, float y, const IMouseMod& mod) override;
+  void OnMouseOver(float x, float y, const IMouseMod& mod) override { mHover = true; SetDirty(false); }
+  void OnMouseOut() override { mHover = false; SetDirty(false); }
+  bool IsDirty() override;
+
+private:
+  Icon mIcon;
+  std::function<void()> mAction;
+  std::function<bool()> mEnabled;
+  bool mHover = false, mShownEnabled = true;
+};
+
 /** Произвольная отрисовка (фон секции, декоративная панель). Не перехватывает мышь. */
 class Canvas : public IControl
 {

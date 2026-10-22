@@ -24,10 +24,10 @@ constexpr float kH = PLUG_HEIGHT;
 constexpr float kHeaderH = 64.f;
 constexpr float kFooterH = 92.f;
 
-const char* const kPageGroups[] = { "page.play", "page.chain", "page.amp", "page.cab", "page.fx", "page.eq" };
-const char* const kPageTitles[] = { "Игра", "Цепочка", "Усилитель", "Кабинет", "Эффекты", "EQ" };
-constexpr int kNumPages = 6;
-enum Page { kPagePlay, kPageChain, kPageAmp, kPageCab, kPageFx, kPageEq };
+const char* const kPageGroups[] = { "page.play", "page.presets", "page.chain", "page.amp", "page.cab", "page.fx", "page.eq" };
+const char* const kPageTitles[] = { "Игра", "Пресеты", "Цепочка", "Усилитель", "Кабинет", "Эффекты", "EQ" };
+constexpr int kNumPages = 7;
+enum Page { kPagePlay, kPagePresets, kPageChain, kPageAmp, kPageCab, kPageFx, kPageEq };
 
 /** Масштабы интерфейса (векторная перерисовка, не растяжение bitmap). */
 constexpr float kScales[] = { 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 2.5f };
@@ -177,7 +177,7 @@ void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
   }));
 
   std::vector<std::string> tabs(kPageTitles, kPageTitles + kNumPages);
-  const float tabW = kNumPages * 104.f;
+  const float tabW = kNumPages * 94.f;
   auto* tabBar = new TabBar(IRECT(575.f - tabW * 0.5f, header.MH() - 19.f, 575.f + tabW * 0.5f, header.MH() + 19.f), tabs,
                             [ctxPtr](int page) { showPage(*ctxPtr, page); });
   g->AttachControl(tabBar);
@@ -208,6 +208,7 @@ void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
   // ---------------------------------------------------------------- Страницы
   ctx.content = b.GetReducedFromTop(kHeaderH).GetReducedFromBottom(kFooterH).GetPadded(-20.f);
   buildPlayPage(ctx, kPageGroups[kPagePlay]);
+  buildPresetsPage(ctx, kPageGroups[kPagePresets]);
   buildChainPage(ctx, kPageGroups[kPageChain]);
   buildAmpPage(ctx, kPageGroups[kPageAmp]);
   buildCabPage(ctx, kPageGroups[kPageCab]);
@@ -243,6 +244,30 @@ void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
     showPage(*ctxPtr, page);
     if (page == kPageFx && ctxPtr->selectFx) ctxPtr->selectFx(id);
   };
+  ctx.gotoPage = [ctxPtr, tabBar](int page) {
+    if (page < 0) page = kPagePresets;
+    tabBar->SetSelected(page);
+    showPage(*ctxPtr, page);
+  };
+  // Горячие клавиши
+  g->SetKeyHandlerFunc([ctxPtr, g](const IKeyPress& key, bool isUp) {
+    if (isUp) return false;
+    TwoonemoonSoundLab* pl = ctxPtr->plugin;
+    if (key.C && (key.VK == kVK_Z || key.utf8[0] == 'z' || key.utf8[0] == 'Z'))
+    {
+      key.S ? pl->redo() : pl->undo();
+      return true;
+    }
+    if (key.VK == kVK_LEFT) { pl->stepPreset(-1); return true; }
+    if (key.VK == kVK_RIGHT) { pl->stepPreset(1); return true; }
+    if (key.utf8[0] == 't' || key.utf8[0] == 'T')
+    {
+      setTunerVisible(g, true);
+      return true;
+    }
+    if (key.VK == kVK_ESCAPE) { setTunerVisible(g, false); return true; }
+    return false;
+  });
   tabBar->SetSelected(startPage);
   showPage(ctx, startPage);
 }

@@ -596,4 +596,73 @@ void ActionButton::OnMouseOut()
   SetDirty(false);
 }
 
+// ============================================================================
+// IconButton
+
+IconButton::IconButton(const IRECT& bounds, Icon icon, std::function<void()> action, std::function<bool()> enabled)
+: IControl(bounds), mIcon(icon), mAction(std::move(action)), mEnabled(std::move(enabled))
+{
+}
+
+bool IconButton::IsDirty()
+{
+  const bool en = mEnabled ? mEnabled() : true;
+  return en != mShownEnabled || IControl::IsDirty();
+}
+
+void IconButton::Draw(IGraphics& g)
+{
+  mShownEnabled = mEnabled ? mEnabled() : true;
+  const float r = mRECT.H() * 0.5f;
+  g.PathClear();
+  g.PathRoundRect(mRECT, r);
+  g.PathFill(mHover && mShownEnabled ? col::bg3 : col::bg2);
+  g.PathClear();
+  g.PathRoundRect(mRECT.GetPadded(-0.5f), r);
+  g.PathStroke(col::hairline, 1.f);
+  const IColor c = mShownEnabled ? col::text : col::text3;
+  const float cx = mRECT.MW(), cy = mRECT.MH(), s = mRECT.H() * 0.18f;
+  IStrokeOptions o = roundStroke();
+  g.PathClear();
+  switch (mIcon)
+  {
+    case Icon::Left:
+      g.PathMoveTo(cx + s * 0.5f, cy - s);
+      g.PathLineTo(cx - s * 0.5f, cy);
+      g.PathLineTo(cx + s * 0.5f, cy + s);
+      g.PathStroke(c, 1.8f, o);
+      break;
+    case Icon::Right:
+      g.PathMoveTo(cx - s * 0.5f, cy - s);
+      g.PathLineTo(cx + s * 0.5f, cy);
+      g.PathLineTo(cx - s * 0.5f, cy + s);
+      g.PathStroke(c, 1.8f, o);
+      break;
+    case Icon::Undo:
+    case Icon::Redo:
+    {
+      // Изогнутая стрелка: Undo — влево, Redo — вправо
+      const float d = mIcon == Icon::Undo ? 1.f : -1.f;
+      const float sx = cx + d * s * 1.1f, sy = cy + s * 0.9f;  // начало (снизу)
+      const float ex = cx - d * s * 0.9f, ey = cy - s * 0.35f; // конец (стрелка)
+      g.PathMoveTo(sx, sy);
+      g.PathCubicBezierTo(cx + d * s * 1.3f, cy - s * 0.6f, cx - d * s * 0.1f, ey, ex, ey);
+      g.PathStroke(c, 1.6f, o);
+      g.PathClear();
+      g.PathMoveTo(ex + d * s * 0.6f, ey - s * 0.55f);
+      g.PathLineTo(ex, ey);
+      g.PathLineTo(ex + d * s * 0.6f, ey + s * 0.55f);
+      g.PathStroke(c, 1.6f, o);
+      break;
+    }
+  }
+}
+
+void IconButton::OnMouseDown(float, float, const IMouseMod&)
+{
+  if (mEnabled && !mEnabled()) return;
+  if (mAction) mAction();
+  SetDirty(false);
+}
+
 } // namespace tslui

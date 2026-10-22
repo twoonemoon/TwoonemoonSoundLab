@@ -358,3 +358,30 @@ TEST_CASE("engine: parallel section mixes path A and B")
   bad.splitEnd = 3;
   CHECK(!isValidChainConfig(bad));
 }
+
+TEST_CASE("engine: preset transition fade goes silent and recovers")
+{
+  Engine e;
+  e.prepare(48000.0, 128);
+  allModulesOff(e);
+  auto l = sine(300.f, 0.3f, 48000.f, 9600);
+  std::vector<float> r(l.size(), 0.f);
+  TransportInfo t;
+  bool sawSilent = false;
+  for (size_t pos = 0; pos < l.size(); pos += 128)
+  {
+    if (pos == 1280) e.beginTransitionFade();
+    if (e.transitionSilent() && !sawSilent)
+    {
+      sawSilent = true;
+      CHECK(pos >= 1280 + 512); // 15 мс ≈ 720 отсчётов
+      e.endTransitionFade();
+    }
+    const float* in[2] = { l.data() + pos, r.data() + pos };
+    float* out[2] = { l.data() + pos, r.data() + pos };
+    e.process(in, 1, out, 2, 128, t);
+  }
+  CHECK(sawSilent);
+  CHECK_NEAR(rms(l, 7000), 0.3 / std::sqrt(2.0), 0.01); // уровень восстановился
+  CHECK(e.processedBlocks() == 75);
+}

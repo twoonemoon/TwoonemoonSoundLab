@@ -78,6 +78,13 @@ public:
 
   void reset() noexcept;
 
+  /** Переходное затухание всего выхода (смена пресета): audio thread. */
+  void beginTransitionFade() noexcept { mTransition.setTarget(0.f); }
+  bool transitionSilent() const noexcept { return mTransition.current() <= 0.f && !mTransition.isSmoothing(); }
+  void endTransitionFade() noexcept { mTransition.setTarget(1.f); }
+  /** Счётчик обработанных блоков — по нему UI понимает, идёт ли аудиопоток. */
+  uint64_t processedBlocks() const noexcept { return mBlocks.load(std::memory_order_relaxed); }
+
   /** Суммарная добавленная задержка (отсчёты) — сообщается хосту. */
   int latencySamples() const noexcept;
 
@@ -120,7 +127,8 @@ private:
   std::array<LinearSmoother, kNumModules> mModuleMix;
   std::array<bool, kNumModules> mModuleActive{};
 
-  LinearSmoother mInGain, mOutGain, mBypassMix, mTunerMute;
+  LinearSmoother mInGain, mOutGain, mBypassMix, mTunerMute, mTransition;
+  std::atomic<uint64_t> mBlocks{ 0 };
 
   // Рабочие буферы (выделены в prepare)
   std::vector<float> mL, mR, mDryL, mDryR, mKey, mInL, mInR, mBL, mBR;

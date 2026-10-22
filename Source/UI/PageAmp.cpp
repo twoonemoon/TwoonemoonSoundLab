@@ -65,28 +65,24 @@ void buildAmpPage(UIContext& ctx, const char* page)
 
   // ---- Выбор модели
   const IRECT top = content.GetFromTop(44.f);
+  auto* modelSel = new EnumSelector(IRECT(top.L + 470.f, top.T + 4.f, top.L + 800.f, top.B - 6.f), kAmpModel);
   std::vector<ActionButton*> catButtons;
   const AmpCategory cats[] = { AmpCategory::Clean, AmpCategory::Crunch, AmpCategory::HighGain, AmpCategory::Acoustic };
   for (int i = 0; i < 4; ++i)
   {
     const AmpCategory cat = cats[i];
     const IRECT r = IRECT(top.L + i * 112.f, top.T + 4.f, top.L + i * 112.f + 104.f, top.B - 6.f);
-    auto* b = new ActionButton(r, categoryName(cat), [plugin, cat, &ctx]() {
+    auto* b = new ActionButton(r, categoryName(cat), [cat, &ctx]() {
       for (int m = 0; m < kNumAmpModels; ++m)
         if (ampVoice(m).category == cat)
         {
-          if (IControl* c = ctx.g->GetControlWithParamIdx(kAmpModel))
-          {
-            c->SetValue(plugin->GetParam(kAmpModel)->ToNormalized(m));
-            c->SetDirty(true);
-          }
+          ctx.setParam(kAmpModel, m);
           break;
         }
     });
     ctx.add(b, page);
     catButtons.push_back(b);
   }
-  auto* modelSel = new EnumSelector(IRECT(top.L + 470.f, top.T + 4.f, top.L + 800.f, top.B - 6.f), kAmpModel);
   ctx.add(modelSel, page);
   auto* desc = new Label(IRECT(top.L + 820.f, top.T, top.R, top.B), "", txt(12.f, col::text2, font::regular, EAlign::Near));
   ctx.add(desc, page);
@@ -153,13 +149,13 @@ void buildAmpPage(UIContext& ctx, const char* page)
   ctx.add(new ToggleChip(IRECT(advRow.R - 120.f, advRow.MH() - 14.f, advRow.R, advRow.MH() + 10.f), kAmpOn, "Amp On"), page);
 
   // ---- Реакция на смену модели и переключение страниц
-  auto refresh = [&ctx, plugin, elecKnobs, acKnobs, catButtons, desc, page, elecGroup, acGroup](int paramIdx) {
-    if (paramIdx != kAmpModel && paramIdx != -1) return;
+  auto refresh = [&ctx, plugin, elecKnobs, acKnobs, catButtons, desc, page, elecGroup, acGroup, modelSel](int paramIdx) {
+    if (paramIdx != kAmpModel && paramIdx != -1 && paramIdx != -2) return;
     const int model = plugin->GetParam(kAmpModel)->Int();
     const AmpVoice& v = ampVoice(model);
     const AmpFaceStyle& st = ampFaceStyle(model);
     const bool acoustic = v.category == AmpCategory::Acoustic;
-    const bool visible = ctx.g->GetControlWithParamIdx(kAmpModel) && !ctx.g->GetControlWithParamIdx(kAmpModel)->IsHidden();
+    const bool visible = !modelSel->IsHidden();
     ctx.g->ForControlInGroup(elecGroup, [&](IControl* c) { c->Hide(!visible || acoustic); });
     ctx.g->ForControlInGroup(acGroup, [&](IControl* c) { c->Hide(!visible || !acoustic); });
     for (auto* k : elecKnobs) { k->SetStyle(st.knob); k->SetAccent(st.knobAccent); k->SetLabelColor(st.label); }

@@ -21,6 +21,8 @@ struct UIContext
   /** Перейти к редактору модуля (страница + выбор), задаётся MainUI/страницей эффектов. */
   std::function<void(tsl::ModuleId)> openModule;
   std::function<void(tsl::ModuleId)> selectFx;
+  /** Переключить страницу (−1 — страница пресетов). */
+  std::function<void(int)> gotoPage;
   /** Слушатели изменения параметров (UI thread). */
   std::vector<std::function<void(int)>> listeners;
 
@@ -53,6 +55,7 @@ struct UIContext
 // Построители страниц
 void buildFxPage(UIContext& ctx, const char* page);
 void buildChainPage(UIContext& ctx, const char* page);
+void buildPresetsPage(UIContext& ctx, const char* page);
 IColor moduleColor(tsl::ModuleId id);
 void buildEqPage(UIContext& ctx, const char* page);
 void buildPlayPage(UIContext& ctx, const char* page);
