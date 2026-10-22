@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font: 13px -apple-system, "Helvetica Neue", sans-serif; color: #222; line-height: 1.45; }
+  h2 { font-size: 17px; margin: 0 0 8px; }
+  li { margin-bottom: 3px; }
+  code { font: 12px Menlo, monospace; }
+  .note { color: #555; }
+  @media (prefers-color-scheme: dark) { body { color: #e6e6e6; } .note { color: #aaa; } }
+</style>
+</head>
+<body>
+<h2>Готово</h2>
+<p><b>Как найти плагин в DAW.</b> Хосты ищут новые плагины по-разному — если TwoonemoonSoundLab не появился, перезапустите DAW или запустите повторное сканирование:</p>
+<ul>
+  <li><b>Logic Pro / GarageBand / MainStage</b> — перезапустите программу; Audio Unit проверится автоматически (Logic: «Настройки → Плагины» — менеджер Audio Units). Производитель: <i>Twoonemoon</i>.</li>
+  <li><b>Ableton Live</b> — «Настройки → Плагины»: включите «Use VST3 Plug-in System Folders» и нажмите «Rescan».</li>
+  <li><b>Reaper</b> — «Preferences → Plug-ins → VST/CLAP»: «Re-scan».</li>
+  <li><b>Bitwig Studio</b> — VST3 и CLAP находятся автоматически после перезапуска.</li>
+  <li><b>Cubase / Studio One</b> — менеджер плагинов → «Обновить/Rescan».</li>
+</ul>
+<p><b>Самостоятельное приложение</b> — «Программы → TwoonemoonSoundLab». Выберите аудиоинтерфейс в «Настройки → Аудиоустройство и буфер…». Начните с небольшой громкости.</p>
+<p><b>Удаление</b> — скрипт <code>Uninstall TwoonemoonSoundLab.command</code> в папке <code>Library/Application Support/TwoonemoonSoundLab</code> (той же, куда выполнялась установка). Пресеты и настройки по умолчанию сохраняются.</p>
+<p class="note">Если macOS сообщает, что программу не удаётся проверить (сборка без подписи Developer ID): откройте приложение через контекстное меню «Открыть» или разрешите его в «Системные настройки → Конфиденциальность и безопасность». Отключать Gatekeeper не нужно.</p>
+</body>
+</html>

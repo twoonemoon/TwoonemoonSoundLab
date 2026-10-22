@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later
+     Описание единого установщика TwoonemoonSoundLab (productbuild).
+     @VERSION@ подставляет Scripts/package.sh. -->
+<installer-gui-script minSpecVersion="2">
+    <title>TwoonemoonSoundLab @VERSION@</title>
+    <organization>com.twoonemoon</organization>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <license file="license.txt" mime-type="text/plain"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+
+    <!-- Только Apple Silicon; пользователь может выбрать компоненты и место установки -->
+    <options customize="allow" require-scripts="false" hostArchitectures="arm64"/>
+    <!-- «Для всех пользователей» (/Applications, /Library/Audio/Plug-Ins — нужен пароль администратора)
+         или «Только для меня» (~/Applications, ~/Library/Audio/Plug-Ins — без пароля) -->
+    <domains enable_localSystem="true" enable_currentUserHome="true" enable_anywhere="false"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="12.0"/>
+        </allowed-os-versions>
+    </volume-check>
+    <installation-check script="checkHost()"/>
+    <script><![CDATA[
+    function checkHost() {
+        if (system.sysctl('hw.optional.arm64') != 1) {
+            my.result.type = 'Fatal';
+            my.result.title = 'Нужен Mac с Apple Silicon';
+            my.result.message = 'TwoonemoonSoundLab собран только для процессоров Apple Silicon (M1 и новее). Установка не выполнена, ничего не изменено.';
+            return false;
+        }
+        return true;
+    }
+    ]]></script>
+
+    <choices-outline>
+        <line choice="app"/>
+        <line choice="au"/>
+        <line choice="vst3"/>
+        <line choice="clap"/>
+        <line choice="support"/>
+    </choices-outline>
+
+    <choice id="app" title="Приложение (Standalone)"
+            description="TwoonemoonSoundLab.app — самостоятельное приложение для игры без DAW. Устанавливается в «Программы».">
+        <pkg-ref id="com.twoonemoon.TwoonemoonSoundLab.pkg.app"/>
+    </choice>
+    <choice id="au" title="Audio Unit (AUv2)"
+            description="Для Logic Pro, GarageBand, MainStage и других хостов Audio Unit. Папка: Library/Audio/Plug-Ins/Components.">
+        <pkg-ref id="com.twoonemoon.TwoonemoonSoundLab.pkg.au"/>
+    </choice>
+    <choice id="vst3" title="VST3"
+            description="Для Ableton Live, Cubase, Reaper, Studio One, Bitwig и др. Папка: Library/Audio/Plug-Ins/VST3.">
+        <pkg-ref id="com.twoonemoon.TwoonemoonSoundLab.pkg.vst3"/>
+    </choice>
+    <choice id="clap" title="CLAP"
+            description="Для Bitwig Studio, Reaper и других хостов с поддержкой CLAP. Папка: Library/Audio/Plug-Ins/CLAP.">
+        <pkg-ref id="com.twoonemoon.TwoonemoonSoundLab.pkg.clap"/>
+    </choice>
+    <choice id="support" visible="false" title="Служебные файлы"
+            description="Скрипт удаления TwoonemoonSoundLab.">
+        <pkg-ref id="com.twoonemoon.TwoonemoonSoundLab.pkg.support"/>
+    </choice>
+
+    <pkg-ref id="com.twoonemoon.TwoonemoonSoundLab.pkg.app" version="@VERSION@" onConclusion="none">TwoonemoonSoundLab-app.pkg</pkg-ref>
+    <pkg-ref id="com.twoonemoon.TwoonemoonSoundLab.pkg.au" version="@VERSION@" onConclusion="none">TwoonemoonSoundLab-au.pkg</pkg-ref>
+    <pkg-ref id="com.twoonemoon.TwoonemoonSoundLab.pkg.vst3" version="@VERSION@" onConclusion="none">TwoonemoonSoundLab-vst3.pkg</pkg-ref>
+    <pkg-ref id="com.twoonemoon.TwoonemoonSoundLab.pkg.clap" version="@VERSION@" onConclusion="none">TwoonemoonSoundLab-clap.pkg</pkg-ref>
+    <pkg-ref id="com.twoonemoon.TwoonemoonSoundLab.pkg.support" version="@VERSION@" onConclusion="none">TwoonemoonSoundLab-support.pkg</pkg-ref>
+</installer-gui-script>

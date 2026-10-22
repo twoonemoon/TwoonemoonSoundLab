@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font: 13px -apple-system, "Helvetica Neue", sans-serif; color: #222; line-height: 1.45; }
+  h2 { font-size: 17px; margin: 0 0 8px; }
+  li { margin-bottom: 3px; }
+  code { font: 12px Menlo, monospace; }
+  .note { color: #555; }
+  @media (prefers-color-scheme: dark) { body { color: #e6e6e6; } .note { color: #aaa; } }
+</style>
+</head>
+<body>
+<h2>TwoonemoonSoundLab @VERSION@</h2>
+<p>Бесплатный гитарный процессор с открытым исходным кодом (GPL-3.0): 12 моделей усилителей, кабинеты и IR, педали и эффекты, эквалайзер, тюнер, пресеты.</p>
+
+<p><b>Что будет установлено</b> (лишнее можно отключить на шаге «Тип установки» → «Настроить»):</p>
+<ul>
+  <li>приложение <code>TwoonemoonSoundLab.app</code> — в «Программы»;</li>
+  <li>Audio Unit — в <code>Library/Audio/Plug-Ins/Components</code>;</li>
+  <li>VST3 — в <code>Library/Audio/Plug-Ins/VST3</code>;</li>
+  <li>CLAP — в <code>Library/Audio/Plug-Ins/CLAP</code>.</li>
+</ul>
+
+<p><b>Для всех пользователей или только для вас.</b> По умолчанию установка выполняется для всех пользователей этого Mac (папки <code>/Applications</code> и <code>/Library</code>) — macOS запросит пароль администратора. Чтобы установить без пароля только для себя (<code>~/Applications</code> и <code>~/Library</code>), на шаге «Выбор места» нажмите «Установить только для меня».</p>
+
+<p><b>Обновление.</b> Если TwoonemoonSoundLab уже установлен, старые версии компонентов будут заменены. Ваши пресеты, настройки и загруженные IR хранятся отдельно (<code>~/Library/Application Support/TwoonemoonSoundLab</code>) и не изменяются.</p>
+
+<p class="note">Установщик не меняет настройки безопасности macOS и конфигурацию ваших DAW. Требуется Mac с Apple Silicon и macOS 12 или новее.</p>
+</body>
+</html>

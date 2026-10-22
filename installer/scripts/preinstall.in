@@ -1,0 +1,23 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# preinstall компонента @BUNDLE@ (генерируется Scripts/package.sh).
+# $2 — папка установки (уже с учётом домена: / или домашняя папка пользователя).
+#
+# * Предыдущая версия НАШЕГО бандла (тот же CFBundleIdentifier) удаляется — обновление без «хвостов».
+# * Если по этому пути лежит чужой бандл с другим идентификатором — установка прерывается, ничего не трогаем.
+# * Пользовательские данные (~/Library/Application Support/TwoonemoonSoundLab) здесь не затрагиваются.
+set -u
+TARGET_DIR="$2"
+BUNDLE="$TARGET_DIR/@BUNDLE@"
+EXPECTED_ID="@BUNDLE_ID@"
+
+if [ -e "$BUNDLE" ]; then
+  FOUND_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$BUNDLE/Contents/Info.plist" 2>/dev/null || true)"
+  if [ "$FOUND_ID" != "$EXPECTED_ID" ]; then
+    echo "TwoonemoonSoundLab: по пути $BUNDLE найден посторонний объект (bundle id: '${FOUND_ID:-нет}'). Установка остановлена, файлы не изменены." >&2
+    exit 1
+  fi
+  echo "TwoonemoonSoundLab: удаляю предыдущую версию $BUNDLE"
+  /bin/rm -rf "$BUNDLE" || { echo "TwoonemoonSoundLab: не удалось удалить $BUNDLE" >&2; exit 1; }
+fi
+exit 0

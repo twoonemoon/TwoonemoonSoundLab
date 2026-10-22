@@ -1,0 +1,6 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# postinstall Audio Unit: просим систему перечитать список Audio Units (служебный процесс
+# AudioComponentRegistrar перезапускается автоматически). Конфигурацию DAW не трогаем.
+/usr/bin/killall -9 AudioComponentRegistrar >/dev/null 2>&1 || true
+exit 0
