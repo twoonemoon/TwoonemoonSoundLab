@@ -63,6 +63,8 @@ public:
   bool isStandalone() const { return GetAPI() == iplug::kAPIAPP; }
   /** Открыть диалог аудиоустройства (только standalone). */
   void openAudioSettings();
+  /** Сменить масштаб интерфейса (выполняется в OnIdle: при переходе в компактный режим окно пересобирается). */
+  void requestUIScale(float scale) { mPendingUIScale = scale; }
 
   // MIDI Learn / экспрессия
   tsl::MidiMap& midiMap() { return mMidiMap; }
@@ -97,6 +99,9 @@ public:
 #endif
 
 private:
+  float mPendingUIScale = 0.f;
+  bool mScaleEnvChecked = false;
+  void applyUIScale(float scale);
   void initParams();
   void updateTailSize();
   void applyNow(const tsl::ParamValues& v, const tsl::ChainConfig& chain);

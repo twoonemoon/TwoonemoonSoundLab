@@ -7,6 +7,8 @@
 #include "TwoonemoonSoundLab.h"
 #include "HelpContent.h"
 #include "TunerView.h"
+#include "AmpFaces.h"
+#include "Amps/AmpVoices.h"
 #include "UIContext.h"
 
 #include <algorithm>
@@ -42,7 +44,7 @@ public:
   {
     mMenu.Clear();
     mMenu.SetRootTitle("Масштаб интерфейса");
-    const float cur = GetUI()->GetDrawScale();
+    const float cur = shownScale();
     for (float s : kScales)
     {
       char buf[16];
@@ -59,17 +61,19 @@ public:
     if (idx < 0 || idx >= static_cast<int>(std::size(kScales))) return;
     mCtx->prefs.uiScale = kScales[idx];
     mCtx->prefs.save();
-    GetUI()->Resize(static_cast<int>(kW), static_cast<int>(kH), kScales[idx]);
+    mCtx->plugin->requestUIScale(kScales[idx]);
   }
   void Draw(IGraphics& g) override
   {
     char buf[16];
-    snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(g.GetDrawScale() * 100.f + 0.5f));
+    snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(shownScale() * 100.f + 0.5f));
     SetLabelStr(buf);
     ActionButton::Draw(g);
   }
 
 private:
+  /** Компактный режим рисуется в масштабе 1.0, но для пользователя это «50%». */
+  float shownScale() const { return GetUI()->Width() < kW ? 0.5f : GetUI()->GetDrawScale(); }
   IPopupMenu mMenu;
   UIContext* mCtx;
 };
@@ -271,6 +275,168 @@ void showPage(UIContext& ctx, int page)
   ctx.g->SetAllControlsDirty();
 }
 
+
+// ============================================================================ Компактный режим
+/** Название пресета для компактной шапки. */
+class CompactPresetName : public IControl
+{
+public:
+  CompactPresetName(const IRECT& r, TwoonemoonSoundLab* plugin) : IControl(r), mPlugin(plugin) { mIgnoreMouse = true; }
+  bool IsDirty() override
+  {
+    return mPlugin->currentPresetName() != mName || mPlugin->presetModified() != mMod || IControl::IsDirty();
+  }
+  void Draw(IGraphics& g) override
+  {
+    mName = mPlugin->currentPresetName();
+    mMod = mPlugin->presetModified();
+    drawCapsLabel(g, mMod ? "Пресет · изменён" : "Пресет", mRECT.GetFromTop(13.f), mMod ? col::warn : col::text3, 8.5f);
+    g.DrawText(txt(14.f, col::text, font::semibold), mName.c_str(), mRECT.GetReducedFromTop(13.f));
+  }
+
+private:
+  TwoonemoonSoundLab* mPlugin;
+  std::string mName;
+  bool mMod = false;
+};
+
+/** Фон панели усилителя в стиле текущей модели. */
+class CompactAmpPanel : public IControl
+{
+public:
+  CompactAmpPanel(const IRECT& r, TwoonemoonSoundLab* plugin) : IControl(r), mPlugin(plugin) { mIgnoreMouse = true; }
+  bool IsDirty() override { return mPlugin->GetParam(kAmpModel)->Int() != mModel || IControl::IsDirty(); }
+  void Draw(IGraphics& g) override
+  {
+    mModel = mPlugin->GetParam(kAmpModel)->Int();
+    const AmpFaceStyle& st = ampFaceStyle(mModel);
+    g.PathClear();
+    g.PathRoundRect(mRECT, 12.f);
+    g.PathFill(IPattern::CreateLinearGradient(mRECT.L, mRECT.T, mRECT.L, mRECT.B, { { st.tolexHi, 0.f }, { st.tolex, 1.f } }));
+    drawBrushedRect(g, mRECT.GetPadded(-8.f, -42.f, -8.f, -8.f), 8.f, st.panel, st.panelHi, st.seed);
+  }
+
+private:
+  TwoonemoonSoundLab* mPlugin;
+  int mModel = -1;
+};
+
+
+void buildCompactUI(IGraphics* g, TwoonemoonSoundLab& plugin, std::shared_ptr<UIContext> ctxPtr)
+{
+  UIContext& ctx = *ctxPtr;
+  TwoonemoonSoundLab* pl = &plugin;
+  Engine& engine = plugin.engine();
+  const IRECT b = g->GetBounds();
+  g->AttachControl(new Canvas(b, [](IGraphics& gr, const IRECT& r) { drawBackdrop(gr, r); }));
+
+  // ---- Шапка: марка, пресет, тюнер, масштаб, bypass
+  const IRECT header = b.GetFromTop(46.f);
+  g->AttachControl(new Canvas(header, [](IGraphics& gr, const IRECT& r) {
+    const IRECT mark(r.L + 14.f, r.T + 9.f, r.L + 110.f, r.B - 9.f);
+    gr.DrawText(txt(12.f, col::text, font::semibold, EAlign::Near), "TWOONEMOON", mark.GetFromTop(15.f));
+    drawCapsLabel(gr, "Sound Lab", mark.GetFromBottom(11.f), col::text3, 8.f, EAlign::Near);
+    gr.FillRect(col::hairline, IRECT(r.L, r.B - 1.f, r.R, r.B));
+  }));
+  const float hy = header.MH();
+  g->AttachControl(new IconButton(IRECT(112.f, hy - 13.f, 138.f, hy + 13.f), IconButton::Icon::Left, [pl]() { pl->stepPreset(-1); }))->SetTooltip("Предыдущий пресет");
+  g->AttachControl(new CompactPresetName(IRECT(140.f, header.T + 6.f, 336.f, header.B - 6.f), pl));
+  g->AttachControl(new IconButton(IRECT(338.f, hy - 13.f, 364.f, hy + 13.f), IconButton::Icon::Right, [pl]() { pl->stepPreset(1); }))->SetTooltip("Следующий пресет");
+  g->AttachControl(new ActionButton(IRECT(370.f, hy - 13.f, 430.f, hy + 13.f), "Тюнер", [g]() { setTunerVisible(g, true); }));
+  g->AttachControl(new ScaleButton(IRECT(434.f, hy - 13.f, 482.f, hy + 13.f), &ctx))->SetTooltip("Масштаб интерфейса");
+  g->AttachControl(new ToggleChip(IRECT(486.f, hy - 13.f, 588.f, hy + 13.f), kBypass, "Bypass", col::hot));
+
+  // ---- Усилитель: модель и шесть основных регуляторов
+  const IRECT amp(12.f, header.B + 8.f, b.R - 12.f, header.B + 154.f);
+  g->AttachControl(new CompactAmpPanel(amp, pl));
+  g->AttachControl(new EnumSelector(IRECT(amp.L + 10.f, amp.T + 7.f, amp.L + 250.f, amp.T + 33.f), kAmpModel));
+  g->AttachControl(new Label(IRECT(amp.L + 262.f, amp.T + 7.f, amp.R - 12.f, amp.T + 33.f), "Компактный режим: основные регуляторы",
+                             txt(10.5f, col::text2, font::regular, EAlign::Far)));
+  {
+    const IRECT knobs = amp.GetPadded(-14.f, -44.f, -14.f, -10.f);
+    const int ids[6] = { kAmpGain, kAmpBass, kAmpMid, kAmpTreble, kAmpMaster, kAmpLevel };
+    const char* names[6] = { "Gain", "Bass", "Middle", "Treble", "Master", "Volume" };
+    const float w = knobs.W() / 6.f;
+    std::vector<Knob*> ks;
+    for (int i = 0; i < 6; ++i)
+    {
+      auto* k = new Knob(IRECT(knobs.L + w * i, knobs.T, knobs.L + w * (i + 1), knobs.B), ids[i], names[i], KnobStyle::Steel, col::accent, ids[i] == kAmpLevel);
+      g->AttachControl(k);
+      ks.push_back(k);
+    }
+    ctx.onParam([pl, ks](int idx) {
+      if (idx != kAmpModel && idx != -1 && idx != -2) return;
+      const AmpFaceStyle& st = ampFaceStyle(pl->GetParam(kAmpModel)->Int());
+      for (auto* k : ks) { k->SetStyle(st.knob); k->SetAccent(st.knobAccent); k->SetLabelColor(st.label); }
+    });
+    ctx.notify(-1);
+  }
+
+  // ---- Эффекты: шесть колонок (вкл/выкл + главный регулятор)
+  struct Col { ModuleId id; int knob; const char* label; };
+  const Col cols[6] = { { ModuleId::Gate, kGateThreshold, "Threshold" }, { ModuleId::Overdrive, kOdDrive, "Drive" }, { ModuleId::Distortion, kDistDrive, "Drive" },
+                        { ModuleId::Chorus, kChoDepth, "Depth" },        { ModuleId::Delay, kDlyMix, "Mix" },          { ModuleId::Reverb, kRvbMix, "Mix" } };
+  const IRECT fx(12.f, amp.B + 8.f, b.R - 12.f, b.B - 70.f);
+  g->AttachControl(new Canvas(fx, [](IGraphics& gr, const IRECT& r) { drawHardwarePanel(gr, r, 12.f); }));
+  const float cw = (fx.W() - 12.f) / 6.f;
+  for (int i = 0; i < 6; ++i)
+  {
+    const float x = fx.L + 6.f + cw * i;
+    const IColor c = moduleColor(cols[i].id);
+    g->AttachControl(new ToggleChip(IRECT(x + 4.f, fx.T + 8.f, x + cw - 4.f, fx.T + 32.f), moduleEnableParam(cols[i].id), moduleShortName(cols[i].id), c))
+      ->SetTooltip(moduleDisplayName(cols[i].id));
+    g->AttachControl(new Knob(IRECT(x, fx.T + 36.f, x + cw, fx.B - 4.f), cols[i].knob, cols[i].label, KnobStyle::Small, c));
+  }
+
+  // ---- Низ: вход/выход и возврат к полному интерфейсу
+  const IRECT footer = b.GetFromBottom(64.f);
+  g->AttachControl(new Canvas(footer, [](IGraphics& gr, const IRECT& r) {
+    gr.FillRect(IColor(255, 12, 13, 16), r);
+    gr.FillRect(col::hairline, IRECT(r.L, r.T, r.R, r.T + 1.f));
+  }));
+  const IRECT fr = footer.GetPadded(-12.f, -6.f, -12.f, -4.f);
+  g->AttachControl(new LevelMeterView(fr.GetFromLeft(18.f), &engine.inputMeter(), "In"));
+  g->AttachControl(new Knob(IRECT(fr.L + 24.f, fr.T, fr.L + 84.f, fr.B), kInputTrim, "Input", KnobStyle::Small, col::accent, true));
+  g->AttachControl(new LevelMeterView(fr.GetFromRight(18.f), &engine.outputMeter(), "Out"));
+  g->AttachControl(new Knob(IRECT(fr.R - 84.f, fr.T, fr.R - 24.f, fr.B), kOutputTrim, "Output", KnobStyle::Small, col::accent, false));
+  g->AttachControl(new ActionButton(IRECT(fr.MW() - 110.f, fr.MH() - 14.f, fr.MW() + 110.f, fr.MH() + 14.f), "Полный интерфейс (100%)", [ctxPtr]() {
+    ctxPtr->prefs.uiScale = 1.f;
+    ctxPtr->prefs.save();
+    ctxPtr->plugin->requestUIScale(1.f);
+  }));
+
+  // ---- Тюнер (оверлей)
+  g->AttachControl(new OverlayBlocker(b, [g]() { setTunerVisible(g, false); }), kNoTag, kTunerGroup);
+  const IRECT panel = b.GetCentredInside(460.f, 300.f);
+  g->AttachControl(new Canvas(panel, [](IGraphics& gr, const IRECT& r) {
+    drawHardwarePanel(gr, r, 16.f, col::bg2);
+    gr.DrawText(txt(14.f, col::text, font::semibold, EAlign::Near), "Тюнер", r.GetPadded(-18.f, -12.f, 0.f, 0.f).GetFromTop(20.f));
+  }), kNoTag, kTunerGroup);
+  g->AttachControl(new TunerView(panel.GetPadded(-24.f, -40.f, -24.f, -58.f), pl), kNoTag, kTunerGroup);
+  const IRECT pb = panel.GetFromBottom(50.f).GetPadded(-18.f, 0.f, -18.f, -12.f);
+  g->AttachControl(new ToggleChip(IRECT(pb.L, pb.MH() - 13.f, pb.L + 150.f, pb.MH() + 13.f), kTunerMute, "Mute выхода", col::warn), kNoTag, kTunerGroup);
+  g->AttachControl(new ActionButton(IRECT(pb.R - 110.f, pb.MH() - 14.f, pb.R, pb.MH() + 14.f), "Закрыть", [g]() { setTunerVisible(g, false); }, false), kNoTag, kTunerGroup);
+  setTunerVisible(g, getenv("TSL_SHOW_TUNER") != nullptr);
+
+  // Контекстное меню параметров и горячие клавиши — как в полном режиме
+  auto* paramMenu = new ParamContextMenu(pl);
+  g->AttachControl(paramMenu);
+  paramHooks().openMenu = [paramMenu](IControl& src, int param, const IRECT& r) { paramMenu->open(src, param, r); };
+  g->SetKeyHandlerFunc([pl, g](const IKeyPress& key, bool isUp) {
+    if (isUp) return false;
+    if (key.C && (key.VK == kVK_Z || key.utf8[0] == 'z' || key.utf8[0] == 'Z'))
+    {
+      key.S ? pl->redo() : pl->undo();
+      return true;
+    }
+    if (key.VK == kVK_LEFT) { pl->stepPreset(-1); return true; }
+    if (key.VK == kVK_RIGHT) { pl->stepPreset(1); return true; }
+    if (key.utf8[0] == 't' || key.utf8[0] == 'T') { setTunerVisible(g, true); return true; }
+    if (key.VK == kVK_ESCAPE) { setTunerVisible(g, false); return true; }
+    return false;
+  });
+}
+
 } // namespace
 
 void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
@@ -295,6 +461,12 @@ void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
   };
   paramHooks().tooltip = [](int param) { return paramTooltip(paramSpec(param).key); };
   plugin.setUIParamListener([ctxPtr](int idx) { ctxPtr->notify(idx); });
+
+  if (g->Width() < kW)
+  {
+    buildCompactUI(g, plugin, ctxPtr);
+    return;
+  }
 
   const IRECT b = g->GetBounds();
   Engine& engine = plugin.engine();

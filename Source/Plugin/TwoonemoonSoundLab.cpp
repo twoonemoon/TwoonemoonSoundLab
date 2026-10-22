@@ -13,6 +13,7 @@ extern HWND gHWND;
 
 #if IPLUG_EDITOR
 #include "UI/MainUI.h"
+#include "IControl.h"
 #endif
 
 using namespace iplug;
@@ -55,7 +56,10 @@ TwoonemoonSoundLab::TwoonemoonSoundLab(const InstanceInfo& info)
 #if IPLUG_EDITOR
   mMakeGraphicsFunc = [&]() {
     // Масштаб интерфейса — из пользовательских настроек (50–250%)
-    return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, tsl::UserSettings::load().uiScale);
+    float scale = tsl::UserSettings::load().uiScale;
+    if (const char* e = getenv("TSL_UI_SCALE")) scale = static_cast<float>(atof(e)); // для автоматических скриншотов
+    if (tslui::isCompactScale(scale)) return MakeGraphics(*this, tslui::kCompactWidth, tslui::kCompactHeight, PLUG_FPS, 1.f);
+    return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, scale);
   };
   mLayoutFunc = [&](IGraphics* pGraphics) { tslui::buildMainUI(pGraphics, *this); };
 #endif
@@ -400,8 +404,53 @@ void TwoonemoonSoundLab::openAudioSettings()
 #endif
 }
 
+void TwoonemoonSoundLab::applyUIScale(float scale)
+{
+#if IPLUG_EDITOR
+  IGraphics* ui = GetUI();
+  if (!ui) return;
+  const bool wasCompact = ui->Width() < PLUG_WIDTH;
+  const bool compact = tslui::isCompactScale(scale);
+  if (wasCompact == compact)
+  {
+    ui->Resize(PLUG_WIDTH, PLUG_HEIGHT, scale);
+    return;
+  }
+  // Полный ↔ компактный: другая раскладка — пересобираем окно (вне обработчиков событий контролов)
+  ui->RemoveAllControls();
+  if (compact) ui->Resize(tslui::kCompactWidth, tslui::kCompactHeight, 1.f);
+  else ui->Resize(PLUG_WIDTH, PLUG_HEIGHT, scale);
+  tslui::buildMainUI(ui, *this);
+  // Новые контролы получают текущие значения параметров
+  for (int i = 0; i < tsl::kNumParams; ++i)
+  {
+    const double v = GetParam(i)->GetNormalized();
+    ui->ForControlWithParam(i, [v](IControl* c) { c->SetValueFromDelegate(v); });
+  }
+  ui->SetAllControlsDirty();
+#else
+  (void)scale;
+#endif
+}
+
 void TwoonemoonSoundLab::OnIdle()
 {
+#if IPLUG_EDITOR
+  if (!mScaleEnvChecked && GetUI())
+  {
+    mScaleEnvChecked = true;
+    // Проверка пересборки окна при смене режима (автоматические скриншоты)
+    if (const char* e = getenv("TSL_SWITCH_SCALE")) mPendingUIScale = static_cast<float>(atof(e));
+  }
+#endif
+#if IPLUG_EDITOR
+  if (mPendingUIScale > 0.f && GetUI())
+  {
+    const float s = mPendingUIScale;
+    mPendingUIScale = 0.f;
+    applyUIScale(s);
+  }
+#endif
   const int st = mPresetState.load(std::memory_order_acquire);
   if (st == kPresetApplied)
   {
