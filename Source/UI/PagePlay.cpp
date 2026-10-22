@@ -28,13 +28,6 @@ void drawPedalBody(IGraphics& g, const IRECT& r, const PedalStyle& st, const cha
   g.PathClear();
   g.PathRoundRect(r, 14.f);
   g.PathFill(IPattern::CreateLinearGradient(r.L, r.T, r.R, r.B, { { st.bodyHi, 0.f }, { st.body, 0.6f }, { st.body, 1.f } }));
-  // Тонкий резной рельеф в нижней части корпуса (за названием)
-  const IRECT relief = r.GetFromBottom(122.f).GetFromTop(66.f).GetPadded(-12.f, 0.f, -12.f, 0.f);
-  g.PathClipRegion(relief);
-  g.PathClear();
-  g.PathRect(relief);
-  g.PathFill(IColor(18, 0, 0, 0));
-  g.PathClipRegion();
   g.PathClear();
   g.PathRoundRect(r.GetPadded(-0.5f), 13.5f);
   g.PathStroke(IPattern::CreateLinearGradient(r.L, r.T, r.L, r.B, { { IColor(70, 255, 255, 255), 0.f }, { IColor(90, 0, 0, 0), 1.f } }), 1.f);

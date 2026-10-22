@@ -5,6 +5,7 @@
 #include "Controls.h"
 #include "Theme.h"
 #include "TwoonemoonSoundLab.h"
+#include "TunerView.h"
 #include "UIContext.h"
 
 #include <algorithm>
@@ -108,6 +109,29 @@ private:
   uint32_t mMask = 0xFFFFFFFF, mSerial = 0xFFFFFFFF;
 };
 
+/** Затемнение под оверлеем; клик вне панели закрывает оверлей. */
+class OverlayBlocker : public IControl
+{
+public:
+  OverlayBlocker(const IRECT& r, std::function<void()> onClose) : IControl(r), mOnClose(std::move(onClose)) {}
+  void Draw(IGraphics& g) override { g.FillRect(IColor(170, 6, 6, 8), mRECT); }
+  void OnMouseDown(float, float, const IMouseMod&) override
+  {
+    if (mOnClose) mOnClose();
+  }
+
+private:
+  std::function<void()> mOnClose;
+};
+
+constexpr const char* kTunerGroup = "overlay.tuner";
+
+void setTunerVisible(IGraphics* g, bool visible)
+{
+  g->ForControlInGroup(kTunerGroup, [visible](IControl* c) { c->Hide(!visible); });
+  g->SetAllControlsDirty();
+}
+
 void showPage(UIContext& ctx, int page)
 {
   for (int i = 0; i < kNumPages; ++i)
@@ -157,7 +181,8 @@ void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
 
   const IRECT hdrRight = header.GetFromRight(330.f).GetPadded(0.f, -14.f, -20.f, -14.f);
   g->AttachControl(new ToggleChip(hdrRight.GetFromRight(110.f).GetCentredInside(100.f, 28.f), kBypass, "Bypass", col::hot));
-  g->AttachControl(new ToggleChip(hdrRight.GetFromRight(220.f).GetFromLeft(105.f).GetCentredInside(100.f, 28.f), kTunerMute, "Mute", col::warn));
+  g->AttachControl(new ActionButton(hdrRight.GetFromRight(220.f).GetFromLeft(105.f).GetCentredInside(100.f, 28.f), "Тюнер",
+                                    [g]() { setTunerVisible(g, true); }));
   g->AttachControl(new ScaleButton(hdrRight.GetFromLeft(70.f).GetCentredInside(64.f, 28.f)));
 
   // ---------------------------------------------------------------- Нижняя панель
@@ -183,6 +208,23 @@ void buildMainUI(IGraphics* g, TwoonemoonSoundLab& plugin)
   buildPlayPage(ctx, kPageGroups[0]);
   buildAmpPage(ctx, kPageGroups[1]);
   buildCabPage(ctx, kPageGroups[2]);
+
+  // ---------------------------------------------------------------- Оверлей тюнера (поверх всего)
+  {
+    g->AttachControl(new OverlayBlocker(b.GetReducedFromTop(kHeaderH), [g]() { setTunerVisible(g, false); }), kNoTag, kTunerGroup);
+    const IRECT panel = b.GetCentredInside(640.f, 400.f).GetVShifted(10.f);
+    g->AttachControl(new Canvas(panel, [](IGraphics& gr, const IRECT& r) {
+      drawHardwarePanel(gr, r, 18.f, col::bg2);
+      gr.DrawText(txt(15.f, col::text, font::semibold, EAlign::Near), "Тюнер", r.GetPadded(-22.f, -16.f, 0.f, 0.f).GetFromTop(20.f));
+    }), kNoTag, kTunerGroup);
+    g->AttachControl(new TunerView(panel.GetPadded(-30.f, -50.f, -30.f, -84.f), &plugin), kNoTag, kTunerGroup);
+    const IRECT bottom = panel.GetFromBottom(72.f).GetPadded(-24.f, 0.f, -24.f, -14.f);
+    g->AttachControl(new ToggleChip(IRECT(bottom.L, bottom.MH() - 13.f, bottom.L + 150.f, bottom.MH() + 13.f), kTunerMute, "Mute выхода", col::warn), kNoTag, kTunerGroup);
+    g->AttachControl(new Knob(IRECT(bottom.MW() - 40.f, bottom.T - 10.f, bottom.MW() + 40.f, bottom.B + 6.f), kTunerRef, "A4 Ref", KnobStyle::Small), kNoTag, kTunerGroup);
+    g->AttachControl(new ActionButton(IRECT(bottom.R - 120.f, bottom.MH() - 14.f, bottom.R, bottom.MH() + 14.f), "Закрыть",
+                                      [g]() { setTunerVisible(g, false); }, false), kNoTag, kTunerGroup);
+    setTunerVisible(g, getenv("TSL_SHOW_TUNER") != nullptr);
+  }
 
   // Стартовая страница; TSL_START_PAGE — для автоматических скриншотов при разработке
   int startPage = 0;
